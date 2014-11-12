@@ -1,0 +1,251 @@
+#!/bin/bash
+### BEGIN INIT INFO
+# Provides:          minecraft
+# Required-Start:    $remote_fs $syslog $network
+# Required-Stop:     $remote_fs $syslog $network
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Minecraft server
+# Description:       Service for starting, stopping and checking
+#                    the status of a Minecraft server.
+### END INIT INFO
+
+# Defaults if no configuration variable file is found
+USER="minecraft"
+LOCATION="/home/$USER/minecraft"
+JAR="minecraft_server.jar"
+MEM_INIT="1024M"
+MEM_MAX="1024M"
+INVOCATION="-Xmx$MEM_MAX -Xms$MEM_INIT -jar $JAR"
+
+# Variables and script settings
+NAME=$(basename $0)
+JAVA=$(which java)
+DESC="Minecraft server"
+CONSOLE="$LOCATION/console.input"
+LOG="$LOCATION/console.output"
+LOG_LINE_REGEX="(\[(..:..:..)\]|....-..-.. (..:..:..)) \[(.*)\]:? (.*)"
+
+# Read configuration variable file if it is present
+[ -r /etc/default/$NAME ] && . /etc/default/$NAME
+
+# Check user
+[ "$(id -u $USER)" ] || exit 1
+
+# Define LSB log_* functions.
+. /lib/lsb/init-functions
+
+# Run as specified user
+as_user() {
+  if [ $(whoami) = $USER ]; then
+    bash -c "$1"
+  else
+    sudo -u $USER /bin/bash -c "$1" || exit 1
+  fi
+}
+
+server_command() {
+  # Usage: server_command "command"
+  # Return
+  #   0 if command was sent
+  
+  as_user "echo \"$1\" > $CONSOLE"
+  return 0
+}
+
+server_is_running() {
+  # Return
+  #   0 if server is running
+  #   1 if server is not running
+  
+  if [ -z "$(ps -aux | grep -v grep | grep "$JAVA.*name=$NAME")" ]; then
+    return 1
+  else
+    if [ -z "$(ps -aux | grep -v grep | grep "$JAVA.*name=$NAME" | grep -v "bash")" ]; then
+      return 1
+    else
+      return 0
+    fi
+  fi
+}
+
+server_reload() {
+  # Return
+  #   0 if server has been reloaded
+  # ( 1 if server could not be reloaded )
+  
+  server_command "whitelist reload"
+  return 0
+}
+
+server_start() {
+  # Return
+  #   0 if server has been started
+  #   1 if server could not be started
+  
+  TIMESTAMP=$(date '+%s')
+  
+  cd $LOCATION || exit 1
+  
+  # Create fifo if it doesn't exist
+  [ -p "$CONSOLE" ] || as_user "mkfifo $CONSOLE"
+  
+  # Start server
+  as_user "tail -n +1 -f --pid=\$$ $CONSOLE | { $JAVA $INVOCATION name=$NAME &> $LOG; kill \$$; }" &> /dev/null &
+  
+  # Wait until current log exists
+  echo "   Initializing..."
+  until [ -r $LOG ] && [ $(date +%s -r $LOG ) -gt $TIMESTAMP ]; do
+    sleep 1
+  done
+  
+  # Read log until started
+  tail -f $LOG | while read LOG_LINE; do
+    
+    [[ $LOG_LINE =~ $LOG_LINE_REGEX ]]
+#   LOG_LINE_TIME="${BASH_REMATCH[2]}${BASH_REMATCH[3]}"
+#   LOG_LINE_TYPE=${BASH_REMATCH[4]}
+    LOG_LINE_MESSAGE=${BASH_REMATCH[5]}
+    
+    case $LOG_LINE in
+      *"Done ("*")! For help, type \"help\" or \"?\"")
+        kill $(ps -o pid,cmd --no-headers --ppid $$ | grep tail | awk '{print $1}')
+        return 0
+        ;;
+      *"Starting minecraft server version "*)
+        ;;
+      *"To start the server with more ram, launch it as \"java -Xmx1024M -Xms1024M -jar minecraft_server.jar\"")
+        echo "   To start the server with more ram, edit /etc/default/minecraft"
+        ;;
+#       *" recipes")
+#         echo $LOG_LINE
+#         ;;
+#       *" achievements")
+#         echo $LOG_LINE
+#         ;;
+      *"**** FAILED TO BIND TO PORT!" | *"You need to agree to the EULA in order to run the server. Go to eula.txt for more info.")
+        echo "   $LOG_LINE_MESSAGE"
+        server_stop
+        kill $(ps -o pid,cmd --no-headers --ppid $$ | grep tail | awk '{print $1}')
+        return 1
+        ;;
+      *)
+        [ -z "$LOG_LINE_MESSAGE" ] || echo "   $LOG_LINE_MESSAGE"
+        ;;
+    esac
+    
+  done
+}
+
+server_stop() {
+  # Return
+  #   0 if server has been stopped
+  #   1 if server could not be stopped
+  
+  server_command "stop"
+  
+  # Wait until server is stopped
+  while kill -0 "$(ps -aux | grep -v grep | grep "$JAVA.*name=$NAME" | grep -v "bash" | awk '{print $2}')" &> /dev/null; do
+    sleep 1
+  done
+  
+  return 0
+}
+
+case "$1" in
+  start)
+    server_is_running
+    case "$?" in
+      0)
+        log_daemon_msg "$DESC is already running"
+      ;;
+      1)
+        log_daemon_msg "Starting $DESC"
+        server_start
+        case "$?" in
+          0) log_end_msg 0 ;;
+          1) log_end_msg 1; exit 1 ;;
+        esac
+      ;;
+    esac
+  ;;
+  stop)
+    server_is_running
+    case "$?" in
+      0)
+        log_daemon_msg "Stopping $DESC"
+        server_stop
+        case "$?" in
+          0) log_end_msg 0 ;;
+          1) log_end_msg 1; exit 1 ;;
+          *) log_end_msg 1; exit 1 ;;
+        esac
+      ;;
+      1)
+        log_daemon_msg "$DESC is not running"
+      ;;
+    esac
+  ;;
+  status)
+    server_is_running
+    case "$?" in
+      0)
+        log_daemon_msg "$DESC is running"
+        exit 0;
+      ;;
+      1)
+        log_daemon_msg "$DESC is not running"
+        exit 3;
+      ;;
+    esac
+  ;;
+  reload)
+    server_is_running
+    case "$?" in
+      0)
+        log_daemon_msg "Reloading $DESC whitelist"
+        server_reload
+        case "$?" in
+          0) log_end_msg 0 ;;
+          1) log_end_msg 1; exit 1 ;;
+        esac
+      ;;
+      1)
+        log_daemon_msg "$DESC is not running"
+      ;;
+    esac
+  ;;
+  restart|force-reload)
+    server_is_running
+    case "$?" in
+      0)
+        log_daemon_msg "Restarting $DESC"
+        server_stop
+        case "$?" in
+          0)
+            log_daemon_msg "$DESC stopped, starting again"
+            server_start
+            case "$?" in
+              0) log_end_msg 0 ;;
+              1) log_end_msg 1; exit 1 ;;
+            esac
+          ;;
+          1) log_end_msg 1; exit 1 ;;
+        esac
+      ;;
+      1)
+        log_daemon_msg "Starting $DESC"
+        server_start
+        case "$?" in
+          0) log_end_msg 0 ;;
+          1) log_end_msg 1; exit 1 ;;
+        esac
+      ;;
+    esac
+  ;;
+  *)
+    echo "Usage: service $NAME {start|stop|status|restart|reload}" >&2
+    exit 3
+  ;;
+esac
+exit 0
