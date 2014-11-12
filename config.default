@@ -12,13 +12,13 @@ LOCATION="/home/$USER/minecraft"
 JAR="minecraft_server.jar"
 
 # Initial memory
-MEM_INIT="512M"
+MEM_INIT="1024M"
 
 # Maximum memory
-MEM_MAX="512M"
+MEM_MAX="1024M"
 
 #CPU_CORES=2
 
-#INVOCATION="java -Xmx$MEM_MAX -Xms$MEM_INIT -XX:+UseConcMarkSweepGC -XX:+UseParNewGC -XX:+CMSIncrementalPacing -XX:ParallelGCThreads=$CPU_CORES -XX:+AggressiveOpts -jar $JAR nogui"
+#INVOCATION="-Xms$MEM_INIT -Xmx$MEM_MAX -XX:+UseConcMarkSweepGC -XX:+UseParNewGC -XX:+CMSIncrementalPacing -XX:ParallelGCThreads=$CPU_CORES -XX:+AggressiveOpts -jar $JAR nogui"
 
 INVOCATION="-Xms$MEM_INIT -Xmx$MEM_MAX -jar $JAR nogui"
