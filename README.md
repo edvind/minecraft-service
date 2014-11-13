@@ -1,7 +1,7 @@
 Minecraft service
 =================
 
-A Minecraft server init script for debian based distributions that aims to be a simple and robust script with basic functionality of starting, stopping, restarting and checking the status of a server.
+A Minecraft server init script for debian based distributions that aims to be a simple and robust service with basic functionality of starting, stopping, restarting and checking the status of a server.
 
 This script does not provide fancy features such as backup or ramdisk, there's already a plethora of great scripts that can handle those kind of features. Instead, this script provides a simple base that doesn't require any extra installs and can be used for writing your own customized server environment.
 
@@ -12,8 +12,9 @@ This script does not provide fancy features such as backup or ramdisk, there's a
 Features
 --------
 
-- Server commands using fifo (eg. `echo "say This is the server admin speaking." > console.input`)
+- Server commands using fifo
 - LSB standards for init scripts, see [Linux Standard Base Core Specification 3.1](http://refspecs.linuxbase.org/LSB_3.1.1/LSB-Core-generic/LSB-Core-generic/iniscrptact.html)
+- Multiple servers
 
 Installation
 ------------
@@ -32,3 +33,9 @@ Start it up
 When configuration is pointed to a Minecraft server directory:
 
 `service minecraft start` (or `/etc/init.d/minecraft start`) starts the server.
+
+FAQ
+---
+
+Q: How do I configure multiple servers?
+A: Symlink (or copy) the minecraft script to an init.d script with a different name, eg. `sudo ln -s /path/to/minecraft-service/minecraft /etc/init.d/minecraft-creative` and create another config file and symlink (or copy) it to its corresponding `/etc/default/minecraft-creative`.
