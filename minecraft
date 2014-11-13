@@ -9,45 +9,46 @@
 # Description:       Service for starting, stopping and checking
 #                    the status of a Minecraft server.
 ### END INIT INFO
+#/etc/init.d/minecraft
 
 # Name of script
-NAME=$(basename $0)
+name=$(basename $0)
 
 # Read configuration variable file if it is present
-if [ -r /etc/default/$NAME ]; then
-  . /etc/default/$NAME
+if [ -r /etc/default/$name ]; then
+  source /etc/default/$name
 else
-  # Defaults if no configuration variable file is found
-  echo "No configuration file found, using default settings."
-  
-  USER="minecraft"
-  LOCATION="/home/$USER/minecraft"
-  JAR="minecraft_server.jar"
-  MEM_INIT="1024M"
-  MEM_MAX="1024M"
-  INVOCATION="-Xmx$MEM_MAX -Xms$MEM_INIT -jar $JAR"
+  # Default values
+  user="minecraft"
+  location="/home/$USER/minecraft"
+  jar="minecraft_server.jar"
+  mem_init="1024M"
+  mem_max="1024M"
+  java="$(which java)"
+  invocation="-Xms$mem_init -Xmx$mem_max -jar $jar nogui"
+  desc="Minecraft server"
+  fifo="$location/console.input"
+  log="$location/console.output"
 fi
 
-# Variables and script settings
-JAVA=$(which java)
-DESC="Minecraft server"
-CONSOLE="$LOCATION/console.input"
-LOG="$LOCATION/console.output"
-LOG_LINE_REGEX="(\[(..:..:..)\]|....-..-.. (..:..:..)) \[(.*)\]:? (.*)"
-
-
-# Check user
-[ "$(id -u $USER)" ] || exit 1
+# Variables
+log_line_regex="(\[(..:..:..)\]|....-..-.. (..:..:..)) \[(.*)\]:? (.*)"
 
 # Define LSB log_* functions.
 . /lib/lsb/init-functions
 
+# Check user
+if [ ! "$(id -u $user)" ]; then
+  log_end_msg 1
+  exit 1
+fi
+
 # Run as specified user
 as_user() {
-  if [ $(whoami) = $USER ]; then
+  if [ $(whoami) = $user ]; then
     bash -c "$1"
   else
-    sudo -u $USER /bin/bash -c "$1" || exit 1
+    su $user /bin/bash -c "$1" || exit 1
   fi
 }
 
@@ -56,7 +57,7 @@ server_command() {
   # Return
   #   0 if command was sent
   
-  as_user "echo \"$1\" > $CONSOLE"
+  as_user "echo \"$1\" > $fifo"
   return 0
 }
 
@@ -65,10 +66,10 @@ server_is_running() {
   #   0 if server is running
   #   1 if server is not running
   
-  if [ -z "$(ps -aux | grep -v grep | grep "$JAVA.*nuid=$NAME-nuid")" ]; then
+  if [ -z "$(ps -aux | grep -v grep | grep "$java.*nuid=$name-nuid")" ]; then
     return 1
   else
-    if [ -z "$(ps -aux | grep -v grep | grep "$JAVA.*nuid=$NAME-nuid" | grep -v "bash")" ]; then
+    if [ -z "$(ps -aux | grep -v grep | grep "$java.*nuid=$name-nuid" | grep -v "bash")" ]; then
       return 1
     else
       return 0
@@ -92,29 +93,29 @@ server_start() {
   
   TIMESTAMP=$(date '+%s')
   
-  cd $LOCATION || exit 1
+  cd $location || exit 1
   
   # Create fifo if it doesn't exist
-  [ -p "$CONSOLE" ] || as_user "mkfifo $CONSOLE"
+  [ -p "$fifo" ] || as_user "mkfifo $fifo"
   
   # Start server
-  as_user "tail -n +1 -f --pid=\$$ $CONSOLE | { $JAVA $INVOCATION nuid=$NAME-nuid &> $LOG; kill \$$; }" &> /dev/null &
+  as_user "tail -n +1 -f --pid=\$$ $fifo | { $java $invocation nuid=$name-nuid &> $log; kill \$$; }" &> /dev/null &
   
   # Wait until current log exists
   echo "   Initializing..."
-  until [ -r $LOG ] && [ $(date +%s -r $LOG ) -gt $TIMESTAMP ]; do
+  until [ -r $log ] && [ $(date +%s -r $log ) -gt $TIMESTAMP ]; do
     sleep 1
   done
   
   # Read log until started
-  tail -f $LOG | while read LOG_LINE; do
+  tail -f $log | while read log_line; do
     
-    [[ $LOG_LINE =~ $LOG_LINE_REGEX ]]
-#   LOG_LINE_TIME="${BASH_REMATCH[2]}${BASH_REMATCH[3]}"
-#   LOG_LINE_TYPE=${BASH_REMATCH[4]}
-    LOG_LINE_MESSAGE=${BASH_REMATCH[5]}
+    [[ $log_line =~ $log_line_regex ]]
+#   log_line_time="${BASH_REMATCH[2]}${BASH_REMATCH[3]}"
+#   log_line_type=${BASH_REMATCH[4]}
+    log_line_message=${BASH_REMATCH[5]}
     
-    case $LOG_LINE in
+    case $log_line in
       *"Done ("*")! For help, type \"help\" or \"?\"")
         kill $(ps -o pid,cmd --no-headers --ppid $$ | grep tail | awk '{print $1}')
         return 0
@@ -124,20 +125,14 @@ server_start() {
       *"To start the server with more ram, launch it as \"java -Xmx1024M -Xms1024M -jar minecraft_server.jar\"")
         echo "   To start the server with more ram, edit /etc/default/minecraft"
         ;;
-#       *" recipes")
-#         echo $LOG_LINE
-#         ;;
-#       *" achievements")
-#         echo $LOG_LINE
-#         ;;
       *"**** FAILED TO BIND TO PORT!" | *"You need to agree to the EULA in order to run the server. Go to eula.txt for more info.")
-        echo "   $LOG_LINE_MESSAGE"
+        echo "   $log_line_message"
         server_stop
         kill $(ps -o pid,cmd --no-headers --ppid $$ | grep tail | awk '{print $1}')
         return 1
         ;;
       *)
-        [ -z "$LOG_LINE_MESSAGE" ] || echo "   $LOG_LINE_MESSAGE"
+        [ -z "$log_line_message" ] || echo "   $log_line_message"
         ;;
     esac
     
@@ -152,7 +147,7 @@ server_stop() {
   server_command "stop"
   
   # Wait until server is stopped
-  while kill -0 "$(ps -aux | grep -v grep | grep "$JAVA.*nuid=$NAME-nuid" | grep -v "bash" | awk '{print $2}')" &> /dev/null; do
+  while kill -0 "$(ps -aux | grep -v grep | grep "$java.*nuid=$name-nuid" | grep -v "bash" | awk '{print $2}')" &> /dev/null; do
     sleep 1
   done
   
@@ -164,10 +159,10 @@ case "$1" in
     server_is_running
     case "$?" in
       0)
-        log_daemon_msg "$DESC is already running"
+        log_daemon_msg "$desc is already running"
       ;;
       1)
-        log_daemon_msg "Starting $DESC"
+        log_daemon_msg "Starting $desc"
         server_start
         case "$?" in
           0) log_end_msg 0 ;;
@@ -180,7 +175,7 @@ case "$1" in
     server_is_running
     case "$?" in
       0)
-        log_daemon_msg "Stopping $DESC"
+        log_daemon_msg "Stopping $desc"
         server_stop
         case "$?" in
           0) log_end_msg 0 ;;
@@ -189,7 +184,7 @@ case "$1" in
         esac
       ;;
       1)
-        log_daemon_msg "$DESC is not running"
+        log_daemon_msg "$desc is not running"
       ;;
     esac
   ;;
@@ -197,11 +192,11 @@ case "$1" in
     server_is_running
     case "$?" in
       0)
-        log_daemon_msg "$DESC is running"
+        log_daemon_msg "$desc is running"
         exit 0;
       ;;
       1)
-        log_daemon_msg "$DESC is not running"
+        log_daemon_msg "$desc is not running"
         exit 3;
       ;;
     esac
@@ -210,7 +205,7 @@ case "$1" in
     server_is_running
     case "$?" in
       0)
-        log_daemon_msg "Reloading $DESC whitelist"
+        log_daemon_msg "Reloading $desc whitelist"
         server_reload
         case "$?" in
           0) log_end_msg 0 ;;
@@ -218,7 +213,7 @@ case "$1" in
         esac
       ;;
       1)
-        log_daemon_msg "$DESC is not running"
+        log_daemon_msg "$desc is not running"
       ;;
     esac
   ;;
@@ -226,11 +221,11 @@ case "$1" in
     server_is_running
     case "$?" in
       0)
-        log_daemon_msg "Restarting $DESC"
+        log_daemon_msg "Restarting $desc"
         server_stop
         case "$?" in
           0)
-            log_daemon_msg "$DESC stopped, starting again"
+            log_daemon_msg "$desc stopped, starting again"
             server_start
             case "$?" in
               0) log_end_msg 0 ;;
@@ -241,7 +236,7 @@ case "$1" in
         esac
       ;;
       1)
-        log_daemon_msg "Starting $DESC"
+        log_daemon_msg "Starting $desc"
         server_start
         case "$?" in
           0) log_end_msg 0 ;;
@@ -251,7 +246,7 @@ case "$1" in
     esac
   ;;
   *)
-    echo "Usage: service $NAME {start|stop|status|restart|reload}" >&2
+    echo "Usage: service $name {start|stop|status|restart|reload}" >&2
     exit 3
   ;;
 esac
