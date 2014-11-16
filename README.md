@@ -27,7 +27,7 @@ Installation
 6. `sudo ln -s /path/to/minecraft-service/minecraft /etc/init.d/minecraft`
 7. `sudo ln -s /path/to/minecraft-service/config /etc/default/minecraft`
 
-(*) Make any changes you need, point `LOCATION` to your full server path and make sure `USER` can read and write to it.
+(*) Make any changes you need, point `location` to your full server path and make sure `user` can read and write to it.
 
 Start it up
 -----------
