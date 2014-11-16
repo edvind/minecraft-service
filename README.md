@@ -37,6 +37,11 @@ Start it up
 FAQ
 ---
 
+Q: What if I don't have a server to point the full server path in the config?
+
+A: If you're not feeling awkward by running scripts from the net you could initiate: `bash <(wget -qO- https://gist.githubusercontent.com/edvind/c1e0afbd40006f6183f3/raw/a116876e340f5780b2dfb5a0c3a077b9e3899935/install.sh)` for a guided installation and download of minecraft_server.jar
+
+
 Q: How do I configure multiple servers?
 
 A: Symlink (or copy) the minecraft script to an init.d script with a different name, eg. `sudo ln -s /path/to/minecraft-service/minecraft /etc/init.d/minecraft-creative` and create another config file and symlink (or copy) it to its corresponding `/etc/default/minecraft-creative`.
