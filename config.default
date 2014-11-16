@@ -11,16 +11,12 @@ location="/home/$USER/minecraft"
 # Name of jar
 jar="minecraft_server.jar"
 
-# Initial memory
+# Initial and maximum memory
 mem_init="1024M"
-
-# Maximum memory
 mem_max="1024M"
 
-# Java executable path
+# Java executable path and invocation
 java="$(which java)"
-
-# Java invocation
 invocation="-Xms$mem_init -Xmx$mem_max -jar $jar nogui"
 
 # Script description in service messages
