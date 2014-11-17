@@ -5,7 +5,7 @@
 # User running the server
 user="minecraft"
 
-# Location of server
+# Location of server files
 location="/home/$USER/minecraft"
 
 # Name of jar
