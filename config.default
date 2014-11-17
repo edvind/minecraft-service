@@ -3,22 +3,27 @@
 #/etc/default/minecraft
 
 # User running the server
-USER="minecraft"
+user="minecraft"
 
-# Location of server
-LOCATION="/home/$USER/minecraft"
+# Location of server files
+location="/home/$USER/minecraft"
 
 # Name of jar
-JAR="minecraft_server.jar"
+jar="minecraft_server.jar"
 
-# Initial memory
-MEM_INIT="1024M"
+# Initial and maximum memory
+mem_init="1024M"
+mem_max="1024M"
 
-# Maximum memory
-MEM_MAX="1024M"
+# Java executable path and invocation
+java="$(which java)"
+invocation="-Xms$mem_init -Xmx$mem_max -jar $jar nogui"
 
-#CPU_CORES=2
+# Script description in service messages
+desc="Minecraft server"
 
-#INVOCATION="-Xms$MEM_INIT -Xmx$MEM_MAX -XX:+UseConcMarkSweepGC -XX:+UseParNewGC -XX:+CMSIncrementalPacing -XX:ParallelGCThreads=$CPU_CORES -XX:+AggressiveOpts -jar $JAR nogui"
+# Console input fifo location
+fifo="$location/console.input"
 
-INVOCATION="-Xms$MEM_INIT -Xmx$MEM_MAX -jar $JAR nogui"
+# Console output log location
+log="$location/console.output"
