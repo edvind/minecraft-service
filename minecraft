@@ -233,19 +233,14 @@ server_reload() {
     return 1
   fi
   
-#  echo "difficulty ${server_setting[difficulty]}:"
   server_command "difficulty ${server_setting[difficulty]}"
   sleep 1
-#  echo "defaultgamemode ${server_setting[gamemode]}:"
   server_command "defaultgamemode ${server_setting[gamemode]}"
   sleep 1
-#  echo "setidletimeout ${server_setting[player-idle-timeout]}:"
   server_command "setidletimeout ${server_setting[player-idle-timeout]}"
   sleep 1
-#  echo "whitelist $whitelist:"
   server_command "whitelist $whitelist"
   sleep 1
-#  echo "whitelist reload:"
   server_command "whitelist reload"
   sleep 1
   
