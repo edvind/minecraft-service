@@ -38,7 +38,7 @@ fi
 log_line_regex="(\[(..:..:..)\]|....-..-.. (..:..:..)) \[(.*)\]: (.*)"
 log_start_regex="Starting minecraft server version (.*)"
 server_properties_file="$location/server.properties"
-server_properties_regex="([a-z-]{3,})=(.{0,})"
+server_properties_regex="^([a-z-]*)=(.*)"
 
 # Define LSB log_* functions.
 . /lib/lsb/init-functions
@@ -162,7 +162,6 @@ server_command() {
       kill $(ps -o pid,cmd --no-headers --ppid $$ | grep tail | awk '{print $1}')
       return 2
     else
-#      echo "   Skipped: ($log_line_message)"
       ((i++))
       # Check timeout
     fi
@@ -173,25 +172,6 @@ server_command() {
       return 2
     fi
   done
-}
-
-server_properties() {
-  # Usage
-  #   server_properties
-  # Return
-  #   0 if properties were stored in associative array server_setting
-  #   1 if properties were not stored in associative array server_setting
-  declare -Ag server_setting
-  
-  # Parse server.properties
-  while read properties_line; do
-    
-    [[ $properties_line = \#* ]] && continue
-    [[ $properties_line =~ $server_properties_regex ]]
-    server_setting["${BASH_REMATCH[1]}"]="${BASH_REMATCH[2]}"
-
-  done <$server_properties_file
-  
 }
 
 server_is_running() {
@@ -208,6 +188,32 @@ server_is_running() {
       return 0
     fi
   fi
+}
+
+server_properties() {
+  # Usage
+  #   server_properties
+  # Return
+  #   0 if properties were stored in associative array server_setting
+  #   1 if properties were not stored in associative array server_setting
+  local setting value
+  declare -Ag server_setting
+  
+  # Parse server.properties
+  while read properties_line; do
+    
+    [[ $properties_line =~ $server_properties_regex ]] || continue
+    
+    setting="${BASH_REMATCH[1]}"
+    value="${BASH_REMATCH[2]}"
+    
+    echo $setting=$value
+    
+    server_setting["$setting"]="$value"
+
+  done <$server_properties_file
+  
+  return 0
 }
 
 server_reload() {
@@ -318,19 +324,18 @@ server_stop() {
 
 server_version() {
   # Return
-  #   0 if server $log could be read and version set to $version_running
-  #   1 if server $log could not be read
-  if [ -r $log ]; then
-    version_running=$(
-      head -4 $log | while read line; do
-        [[ $line =~ $log_start_regex ]]
-        [[ ! -z ${BASH_REMATCH[1]} ]] && echo "${BASH_REMATCH[1]}"
-      done
-    )
-  else
-    return 1
-  fi
-  [[ -z $version_running ]] && return 1
+  #   0 if version value is stored in $version_running
+  #   1 if server $version_running could not be determined
+  #
+  # TODO: Probably should limit the while array to 10 lines or something. ( In case of huge logfile )
+  
+  local line
+  
+  while read line; do
+    [[ $line =~ $log_start_regex ]]
+    [[ ! -z ${BASH_REMATCH[1]} ]] && version_running="${BASH_REMATCH[1]}" && break
+  done <$log || return 1
+  
   return 0
 }
 
