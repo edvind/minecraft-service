@@ -36,6 +36,7 @@ fi
 # Variables
 #log_line_regex="(\[(..:..:..)\]|....-..-.. (..:..:..)) \[(.*)\]:? (.*)"
 log_line_regex="(\[(..:..:..)\]|....-..-.. (..:..:..)) \[(.*)\]: (.*)"
+log_start_regex="Starting minecraft server version (.*)"
 server_properties_file="$location/server.properties"
 server_properties_regex="([a-z-]{3,})=(.{0,})"
 
@@ -315,6 +316,24 @@ server_stop() {
   return 0
 }
 
+server_version() {
+  # Return
+  #   0 if server $log could be read and version set to $version_running
+  #   1 if server $log could not be read
+  if [ -r $log ]; then
+    version_running=$(
+      head -4 $log | while read line; do
+        [[ $line =~ $log_start_regex ]]
+        [[ ! -z ${BASH_REMATCH[1]} ]] && echo "${BASH_REMATCH[1]}"
+      done
+    )
+  else
+    return 1
+  fi
+  [[ -z $version_running ]] && return 1
+  return 0
+}
+
 case "$1" in
   start)
     server_is_running
@@ -406,17 +425,6 @@ case "$1" in
     esac
   ;;
 # Special commands
-  backup)
-    server_is_running
-    case "$?" in
-      0)
-        log_daemon_msg "Backing up $desc"
-      ;;
-      1)
-        log_daemon_msg "$desc is not running"
-      ;;
-    esac
-  ;;
   command)
     server_is_running
     case "$?" in
@@ -433,9 +441,27 @@ case "$1" in
       ;;
     esac
   ;;
+  version)
+    server_is_running
+    case "$?" in
+      0)
+        if server_version; then
+          echo "$desc is running version: $version_running"
+        else
+          echo "Could not find version of $desc"
+        fi
+      ;;
+      1)
+        log_daemon_msg "$desc is not running"
+        if server_version; then
+          echo "$desc was running version: $version_running"
+        fi
+      ;;
+    esac
+  ;;
 # Catch all
   *)
-    echo "Usage: service $name {start|stop|status|restart|reload|command}" >&2
+    echo "Usage: service $name {start|stop|status|restart|reload|command|version}" >&2
     exit 3
   ;;
 esac
