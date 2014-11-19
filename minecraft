@@ -34,8 +34,6 @@ else
 fi
 
 # Variables
-#log_line_regex="(\[(..:..:..)\]|....-..-.. (..:..:..)) \[(.*)\]:? (.*)"
-log_line_regex="(\[(..:..:..)\]|....-..-.. (..:..:..)) \[(.*)\]: (.*)"
 log_start_regex="Starting minecraft server version (.*)"
 server_properties_file="$location/server.properties"
 server_properties_regex="^([a-z-]*)=(.*)"
@@ -131,47 +129,41 @@ server_command() {
   
   as_user "echo \"$1\" > $fifo"
   
-  tail -f $log | while read log_line; do
-    
-    local log_line_error log_line_time log_line_message log_line_time_seconds todays_time todays_date
-    
-    [[ $log_line =~ $log_line_regex ]]
-    log_line_time="${BASH_REMATCH[2]}${BASH_REMATCH[3]}"
-    log_line_message=${BASH_REMATCH[5]}
-    
-    # Create log timestamp from log time in hh:mm:ss + todays date
-    IFS=: read h m s <<< "$log_line_time"
-    todays_time=$((10#$h * 3600 + 10#$m * 60 + 10#$s))
-    todays_date=$(date -d "$(date +%F)" +%s)
-    log_line_time_seconds=$(($todays_date + $todays_time))
-    
-    # If log timestamp is less than our reference timestamp, skip iteration
-    
-    [[ $log_line_time_seconds -lt $timestamp ]] && continue
-    
-    if array_contains "$log_line_message" message[@]; then
-      echo "   $log_line_message"
-      kill $(ps -o pid,cmd --no-headers --ppid $$ | grep tail | awk '{print $1}')
-      return 0
-    elif array_contains "$log_line_message" failed[@]; then
-      echo "   $log_line_message"
-      kill $(ps -o pid,cmd --no-headers --ppid $$ | grep tail | awk '{print $1}')
-      return 1
-    elif [[ ${#message[@]} -eq 0 ]]; then
-      echo "   $log_line_message"
-      kill $(ps -o pid,cmd --no-headers --ppid $$ | grep tail | awk '{print $1}')
-      return 2
-    else
-      ((i++))
-      # Check timeout
-    fi
-    
-    # Return 2 if response was not found in 4 lines
-    if (( i > 3 )); then
-      kill $(ps -o pid,cmd --no-headers --ppid $$ | grep tail | awk '{print $1}')
-      return 2
-    fi
-  done
+  if server_version; then
+    tail -f $log | while read log_line; do
+  
+      server_log "$log_line"
+      
+      # If log timestamp is less than our reference timestamp, skip iteration
+      [[ $log_line_timestamp -lt $timestamp ]] && continue
+      
+      if array_contains "$log_line_message" message[@]; then
+        echo "   $log_line_message"
+        kill $(ps -o pid,cmd --no-headers --ppid $$ | grep tail | awk '{print $1}')
+        return 0
+      elif array_contains "$log_line_message" failed[@]; then
+        echo "   $log_line_message"
+        kill $(ps -o pid,cmd --no-headers --ppid $$ | grep tail | awk '{print $1}')
+        return 1
+      elif [[ ${#message[@]} -eq 0 ]]; then
+        echo "   $log_line_message"
+        kill $(ps -o pid,cmd --no-headers --ppid $$ | grep tail | awk '{print $1}')
+        return 2
+      else
+        ((i++))
+        # Check timeout
+      fi
+      
+      # Return 2 if response was not found in 4 lines
+      if (( i > 3 )); then
+        kill $(ps -o pid,cmd --no-headers --ppid $$ | grep tail | awk '{print $1}')
+        return 2
+      fi
+    done
+  else
+    echo "   Sent command: $1"
+    return 2
+  fi
 }
 
 server_is_running() {
@@ -190,9 +182,50 @@ server_is_running() {
   fi
 }
 
-server_properties() {
+server_log() {
   # Usage
-  #   server_properties
+  #   server_log <log line>
+  # Return
+  #   0 if trying to parse logfile
+  #   1 if not trying to parse logfile
+  local log_line_input log_line_regex
+  
+  log_line_input=$1
+  
+  if server_version; then
+    case $version_running in
+      "rd-132211"|"rd-132328"|"rd-160052"|"rd-161348"|"c0.0.11a"|"c0.0.13a"|"c0.0.13a_03"|"c0.30_01c"|"inf-20100618"|"a1.0.4"|"a1.0.5_01"|"a1.0.11"|"a1.0.14"|"a1.0.15"|"a1.0.16"|"a1.0.17_02"|"a1.0.17_04"|"a1.1.0"|"a1.1.2"|"a1.1.2_01"|"a1.2.0"|"a1.2.0_01"|"a1.2.0_02"|"a1.2.1"|"a1.2.1_01"|"a1.2.2a"|"a1.2.2b"|"a1.2.3"|"a1.2.3_01"|"a1.2.3_02"|"a1.2.3_04"|"a1.2.4_01"|"a1.2.5"|"a1.2.6"|"b1.0"|"b1.0_01"|"b1.0.2"|"b1.1_01"|"b1.1_02"|"b1.2"|"b1.2_01"|"b1.2_02"|"b1.3b"|"b1.3_01"|"b1.4"|"b1.4_01"|"b1.5"|"b1.5_01"|"b1.6"|"b1.6.1"|"b1.6.2"|"b1.6.3"|"b1.6.4"|"b1.6.5"|"b1.6.6"|"b1.7"|"b1.7.2"|"b1.7.3"|"b1.8"|"b1.8.1"|"1.0"|"1.1"|"1.2.1"|"1.2.2"|"1.2.3"|"1.2.4"|"1.2.5"|"1.3"|"1.3.1"|"1.3.2"|"1.4"|"1.4.1"|"1.4.2"|"1.4.3"|"1.4.4"|"1.4.5"|"1.4.6"|"1.4.7"|"1.5"|"1.5.1"|"1.5.2"|"1.6"|"1.6.1"|"1.6.2"|"1.6.4")
+        log_line_regex="(....-..-..) (..:..:..) \[(.{0,4})\] (.*)"
+        [[ $log_line_input =~ $log_line_regex ]]
+        log_line_date="${BASH_REMATCH[1]}"
+        log_line_time="${BASH_REMATCH[2]}"
+        log_line_thread=""
+        log_line_type="${BASH_REMATCH[3]}"
+        log_line_message="${BASH_REMATCH[4]}"
+        
+        log_line_timestamp=$(date -d "$log_line_date $log_line_time" +%s)
+      ;;
+      "1.7"|*)
+        log_line_regex="\[(..:..:..)\] \[(.*)/(.{0,4})\]: (.*)"
+        [[ $log_line_input =~ $log_line_regex ]]
+        log_line_date=""
+        log_line_time="${BASH_REMATCH[1]}"
+        log_line_thread="${BASH_REMATCH[2]}"
+        log_line_type="${BASH_REMATCH[3]}"
+        log_line_message="${BASH_REMATCH[4]}"
+        
+        # Create log timestamp from log time in hh:mm:ss + todays date
+        log_line_timestamp=$(date -d "$(date +%F) $log_line_time" +%s)
+      ;;
+    esac
+    return 0
+  else
+    return 1
+  fi
+  
+}
+
+server_properties() {
   # Return
   #   0 if properties were stored in associative array server_setting
   #   1 if properties were not stored in associative array server_setting
@@ -206,8 +239,6 @@ server_properties() {
     
     setting="${BASH_REMATCH[1]}"
     value="${BASH_REMATCH[2]}"
-    
-    echo $setting=$value
     
     server_setting["$setting"]="$value"
 
@@ -272,10 +303,7 @@ server_start() {
   # Read log until started
   tail -f $log | while read log_line; do
     
-    [[ $log_line =~ $log_line_regex ]]
-#   log_line_time="${BASH_REMATCH[2]}${BASH_REMATCH[3]}"
-#   log_line_type=${BASH_REMATCH[4]}
-    log_line_message=${BASH_REMATCH[5]}
+    server_log "$log_line"
     
     case $log_line in
       *"Done ("*")! For help, type \"help\" or \"?\"")
@@ -325,6 +353,8 @@ server_version() {
   # TODO: Probably should limit the while array to 10 lines or something. ( In case of huge logfile )
   
   local line
+  
+  [[ ! -z "$version_running" ]] && return 0
   
   while read line; do
     [[ $line =~ $log_start_regex ]]
