@@ -85,47 +85,47 @@ server_command() {
   case "$1" in
     "defaultgamemode "*)
       message=(
-        "The world's default game mode is now (.*)"
+        "^The world's default game mode is now (.*)"
       )
     ;;
     "difficulty "*)
       message=(
-        "Set game difficulty to (.*)"
+        "^Set game difficulty to (.*)"
       )
     ;;
     "setidletimeout "*)
       message=(
-        "Successfully set the idle timeout to (.*) minutes."
+        "^Successfully set the idle timeout to (.*) minutes."
       )
     ;;
     "whitelist off")
       message=(
-        "CONSOLE: Turned off white-listing"
-        "Turned off the whitelist"
+        "^CONSOLE: Turned off white-listing"
+        "^Turned off the whitelist"
       )
     ;;
     "whitelist on")
       message=(
-        "CONSOLE: Turned on white-listing"
-        "Turned on the whitelist"
+        "^CONSOLE: Turned on white-listing"
+        "^Turned on the whitelist"
       )
     ;;
     "whitelist reload")
       message=(
-        "CONSOLE: Reloaded white-list from file"
-        "Reloaded the whitelist"
+        "^CONSOLE: Reloaded white-list from file"
+        "^Reloaded the whitelist"
       )
     ;;
   esac
   
   failed=(
-    "'(.*)' is not a valid number"
-    "The number you have entered \((.*)\) is too small, it must be at least (.*)"
+    "^'(.*)' is not a valid number"
+    "^The number you have entered \((.*)\) is too small, it must be at least (.*)"
   )
   
   unknown=(
-    "Unknown console command. Type \"help\" for help."
-    "Unknown command. Try /help for a list of commands" # 1.3.1 (1.3) and later
+    "^Unknown console command. Type \"help\" for help."
+    "^Unknown command. Try /help for a list of commands" # 1.3.1 (1.3) and later
   )
 
 #  Debug  
