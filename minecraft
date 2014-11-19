@@ -100,11 +100,13 @@ server_command() {
     ;;
     "whitelist off")
       message=(
+        "CONSOLE: Turned off white-listing"
         "Turned off the whitelist"
       )
     ;;
     "whitelist on")
       message=(
+        "CONSOLE: Turned on white-listing"
         "Turned on the whitelist"
       )
     ;;
