@@ -112,6 +112,7 @@ server_command() {
     ;;
     "whitelist reload")
       message=(
+        "CONSOLE: Reloaded white-list from file"
         "Reloaded the whitelist"
       )
     ;;
