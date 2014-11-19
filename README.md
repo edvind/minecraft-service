@@ -1,9 +1,11 @@
 Minecraft service
 =================
 
-A Minecraft server init script for debian based distributions that aims to be a simple and robust service with basic functionality of starting, stopping, restarting and checking the status of a server.
+A (vanilla) Minecraft server init script for debian based distributions that aims to be a simple and robust service with basic functionality of starting, stopping, restarting and checking the status of a server.
 
 This script does not provide fancy features such as backup or ramdisk, there's already a plethora of great scripts that can handle those kind of features. Instead, this script provides a simple base that doesn't require any extra installs and can be used for writing your own customized server environment.
+
+Latest code can be found in development branch.
 
 **Tested on**
 
