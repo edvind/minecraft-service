@@ -15,7 +15,7 @@ jar="minecraft_server.jar"
 mem_init="1024M"
 mem_max="1024M"
 
-# Java executable path and invocation
+# Java path and invocation
 java="$(which java)"
 invocation="-Xms$mem_init -Xmx$mem_max -jar $jar nogui"
 
