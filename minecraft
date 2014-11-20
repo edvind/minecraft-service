@@ -37,6 +37,7 @@ fi
 log_start_regex="Starting minecraft server version (.*)"
 server_properties_file="$location/server.properties"
 server_properties_regex="^([a-z-]*)=(.*)"
+versions_json=http://s3.amazonaws.com/Minecraft.Download/versions/versions.json
 
 # Define LSB log_* functions.
 . /lib/lsb/init-functions
@@ -203,7 +204,7 @@ server_log() {
   log_line_input=$1
   
   if server_version; then
-    case $version_running in
+    case $version_current in
       "rd-132211"|"rd-132328"|"rd-160052"|"rd-161348"|"c0.0.11a"|"c0.0.13a"|"c0.0.13a_03"|"c0.30_01c"|"inf-20100618"|"a1.0.4"|"a1.0.5_01"|"a1.0.11"|"a1.0.14"|"a1.0.15"|"a1.0.16"|"a1.0.17_02"|"a1.0.17_04"|"a1.1.0"|"a1.1.2"|"a1.1.2_01"|"a1.2.0"|"a1.2.0_01"|"a1.2.0_02"|"a1.2.1"|"a1.2.1_01"|"a1.2.2a"|"a1.2.2b"|"a1.2.3"|"a1.2.3_01"|"a1.2.3_02"|"a1.2.3_04"|"a1.2.4_01"|"a1.2.5"|"a1.2.6"|"b1.0"|"b1.0_01"|"b1.0.2"|"b1.1_01"|"b1.1_02"|"b1.2"|"b1.2_01"|"b1.2_02"|"b1.3b"|"b1.3_01"|"b1.4"|"b1.4_01"|"b1.5"|"b1.5_01"|"b1.6"|"b1.6.1"|"b1.6.2"|"b1.6.3"|"b1.6.4"|"b1.6.5"|"b1.6.6"|"b1.7"|"b1.7.2"|"b1.7.3"|"b1.8"|"b1.8.1"|"1.0"|"1.1"|"1.2.1"|"1.2.2"|"1.2.3"|"1.2.4"|"1.2.5"|"1.3"|"1.3.1"|"1.3.2"|"1.4"|"1.4.1"|"1.4.2"|"1.4.3"|"1.4.4"|"1.4.5"|"1.4.6"|"1.4.7"|"1.5"|"1.5.1"|"1.5.2"|"1.6"|"1.6.1"|"1.6.2"|"1.6.4")
         log_line_regex="(....-..-..) (..:..:..) \[(.{0,4})\] (.*)"
         [[ $log_line_input =~ $log_line_regex ]]
@@ -322,7 +323,7 @@ server_start() {
       ;;
       *"Starting minecraft server"*)
         if server_version; then
-          echo "   Server version: $version_running"
+          echo "   Server version: $version_current"
         fi
       ;;
       *"To start the server with more ram, launch it as \"java -Xmx1024M -Xms1024M -jar minecraft_server.jar\"")
@@ -362,20 +363,109 @@ server_stop() {
   return 0
 }
 
+server_update() {
+  # Return
+  #   0 if server has been updated
+  #   1 if server has not been updated
+  
+  if [[ -z $version_online ]]; then
+    server_update_check
+    case "$?" in
+      2) return 1 ;;
+    esac  
+  fi
+  
+  server_url="https://s3.amazonaws.com/Minecraft.Download/versions/$version_online/minecraft_server.$version_online.jar"
+  
+  if [ $(whoami) = $user ]; then
+    printf "   %s" "Downloading..."
+    wget --progress=dot -N -P $location $server_url 2>&1 | \
+    grep -oP --line-buffered "(\d{1,3})%" | \
+    while read line; do
+      printf "\r   %s %s" "Downloading..." "$line"
+    done; test ${PIPESTATUS[0]} -eq 0 && printf "\r   %s %s\n" "Downloading..." "100%" || printf "\r   %s %s\n" "Downloading..." "failed"
+  else
+    sudo -u $user /bin/bash -c "wget -N -P $location $server_url"
+    sudo -u $user /bin/bash -c "chown $user:$user $location/minecraft_server.$version_online.jar"
+  fi
+  
+  case "$?" in
+    1)  return 1 ;;
+  esac
+  
+  server_is_running
+  case "$?" in
+    0)
+      log_daemon_msg "Stopping $desc"
+      server_stop
+      case "$?" in
+        0)
+          echo "   Updating minecraft_server.jar"
+          sleep 1
+          as_user "mv $location/minecraft_server.$version_online.jar $location/minecraft_server.jar"
+          
+          log_daemon_msg "Starting $desc"
+          server_start
+          case "$?" in
+            0) return 0 ;;
+            1) return 1 ;;
+          esac
+        ;;
+        1) return 1 ;;
+      esac
+    ;;
+    1)
+      echo "   Updating minecraft_server.jar"
+      as_user "mv $location/minecraft_server.$version_online.jar $location/minecraft_server.jar"
+      return 0
+    ;;
+  esac
+}
+
+server_update_check() {
+  # Return
+  #   0 if online version differs from installed minecraft_server.jar
+  #   1 if theres no difference between online and local version numbers
+  #   2 if an error occured
+  
+  local json_regex line 
+  
+  json_regex="\"($version)\": \"(.*)\""
+  
+  while read line; do
+    if [[ $line =~ $json_regex ]]; then
+      version_online="${BASH_REMATCH[2]}"
+      break
+    fi
+  done <<<"$(wget -qO- $versions_json)"
+  
+  [[ -z $version_online ]] && return 2
+  
+  if server_version; then
+    if [[ "$version_current" = "$version_online" ]]; then
+      return 1
+    else
+      return 0
+    fi
+  else
+    return 2
+  fi
+}
+
 server_version() {
   # Return
-  #   0 if version value is stored in $version_running
-  #   1 if server $version_running could not be determined
+  #   0 if version value is stored in $version_current
+  #   1 if server $version_current could not be determined
   #
   # TODO: Probably should limit the while array to 10 lines or something. ( In case of huge logfile )
   
   local line
   
-  [[ ! -z "$version_running" ]] && return 0
+  [[ ! -z "$version_current" ]] && return 0
   
   while read line; do
     [[ $line =~ $log_start_regex ]]
-    [[ ! -z ${BASH_REMATCH[1]} ]] && version_running="${BASH_REMATCH[1]}" && break
+    [[ ! -z ${BASH_REMATCH[1]} ]] && version_current="${BASH_REMATCH[1]}" && break
   done <$log || return 1
   
   return 0
@@ -488,12 +578,50 @@ case "$1" in
       ;;
     esac
   ;;
+  check-update)
+    server_update_check
+    case "$?" in
+      0)
+        log_daemon_msg "New $version available: $version_online (currently running $version_current)"
+      ;;
+      1)
+        log_daemon_msg "Server's running latest $version ($version_current)"
+      ;;
+      2)
+        log_daemon_msg "There was a problem running check-update"
+      ;;
+    esac
+  ;;
+  update)
+    server_update_check
+    case "$?" in
+      0)
+        log_daemon_msg "Starting update to new $version: $version_online"
+        server_update
+        case "$?" in
+          0)
+            log_daemon_msg "Successfully updated server to $version: $version_online"
+            log_end_msg 0
+          ;;
+          1) log_end_msg 1; exit 1 ;;
+        esac
+      ;;
+      1)
+        log_daemon_msg "Server's already running latest $version ($version_current)"
+      ;;
+      2)
+        log_daemon_msg "Checking for new $version"
+        log_end_msg 1
+        exit 1
+      ;;
+    esac
+  ;;
   version)
     server_is_running
     case "$?" in
       0)
         if server_version; then
-          echo "$desc is running version: $version_running"
+          echo "$desc is running version: $version_current"
         else
           echo "Could not find version of $desc"
         fi
@@ -501,14 +629,14 @@ case "$1" in
       1)
         log_daemon_msg "$desc is not running"
         if server_version; then
-          echo "$desc was running version: $version_running"
+          echo "$desc was running version: $version_current"
         fi
       ;;
     esac
   ;;
 # Catch all
   *)
-    echo "Usage: service $name {start|stop|status|restart|reload|command|version}" >&2
+    echo "Usage: service $name {start|stop|status|restart|reload|command|check-update|update|version}" >&2
     exit 3
   ;;
 esac

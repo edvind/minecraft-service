@@ -11,6 +11,10 @@ location="/home/$USER/minecraft"
 # Name of jar
 jar="minecraft_server.jar"
 
+# Minecraft version
+# Possible values: "release" or "snapshot"
+version="release"
+
 # Initial and maximum memory
 mem_init="1024M"
 mem_max="1024M"
