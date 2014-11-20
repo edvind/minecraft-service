@@ -24,6 +24,7 @@ else
   user="minecraft"
   location="/home/$USER/minecraft"
   jar="minecraft_server.jar"
+  version="release"
   mem_init="1024M"
   mem_max="1024M"
   java="$(which java)"
