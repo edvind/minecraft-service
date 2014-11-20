@@ -323,7 +323,7 @@ server_start() {
         return 0
       ;;
       *"Starting minecraft server"*)
-        if server_version; then
+        if server_version "update"; then
           echo "   Server version: $version_current"
         fi
       ;;
@@ -403,7 +403,7 @@ server_update() {
         0)
           echo "   Updating minecraft_server.jar"
           sleep 1
-          as_user "mv $location/minecraft_server.$version_online.jar $location/minecraft_server.jar"
+          as_user "rm $location/minecraft_server.jar && mv $location/minecraft_server.$version_online.jar $location/minecraft_server.jar"
           
           log_daemon_msg "Starting $desc"
           server_start
@@ -417,7 +417,7 @@ server_update() {
     ;;
     1)
       echo "   Updating minecraft_server.jar"
-      as_user "mv $location/minecraft_server.$version_online.jar $location/minecraft_server.jar"
+      as_user "rm $location/minecraft_server.jar && mv $location/minecraft_server.$version_online.jar $location/minecraft_server.jar"
       return 0
     ;;
   esac
@@ -460,9 +460,11 @@ server_version() {
   #
   # TODO: Probably should limit the while array to 10 lines or something. ( In case of huge logfile )
   
-  local line
+  local arg=$1 line
   
-  [[ ! -z "$version_current" ]] && return 0
+  if [[ ! $arg = "update" ]]; then
+    [[ ! -z "$version_current" ]] && return 0
+  fi
   
   while read line; do
     [[ $line =~ $log_start_regex ]]
