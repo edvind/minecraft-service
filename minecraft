@@ -339,6 +339,8 @@ server_start() {
       ;;
       *"**** FAILED TO BIND TO PORT!")
         echo "   $log_line_message"
+        # TODO: fix build-in command function
+        as_user "echo stop > $fifo"
         kill $(ps -o pid,cmd --no-headers --ppid $$ | grep tail | awk '{print $1}')
         return 1
       ;;
