@@ -332,7 +332,8 @@ server_start() {
       ;;
       *"You need to agree to the EULA in order to run the server. Go to eula.txt for more info.")
         echo "   $log_line_message"
-        server_stop
+        # TODO: fix build-in command function
+        as_user "echo stop > $fifo"
         kill $(ps -o pid,cmd --no-headers --ppid $$ | grep tail | awk '{print $1}')
         return 1
       ;;
@@ -401,7 +402,7 @@ server_update() {
       server_stop
       case "$?" in
         0)
-          echo "   Updating minecraft_server.jar"
+          log_daemon_msg "Updating minecraft_server.jar"
           sleep 1
           as_user "rm $location/minecraft_server.jar && mv $location/minecraft_server.$version_online.jar $location/minecraft_server.jar"
           
@@ -416,7 +417,7 @@ server_update() {
       esac
     ;;
     1)
-      echo "   Updating minecraft_server.jar"
+      log_daemon_msg "Updating minecraft_server.jar"
       as_user "rm $location/minecraft_server.jar && mv $location/minecraft_server.$version_online.jar $location/minecraft_server.jar"
       return 0
     ;;
