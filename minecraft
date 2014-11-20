@@ -328,11 +328,12 @@ server_start() {
         fi
       ;;
       *"To start the server with more ram, launch it as \"java -Xmx1024M -Xms1024M -jar minecraft_server.jar\"")
-        echo "   To start the server with more ram, edit /etc/default/minecraft"
+        echo "   To start the server with more ram, edit /etc/default/$name"
       ;;
       *"You need to agree to the EULA in order to run the server. Go to eula.txt for more info.")
         echo "   $log_line_message"
         # TODO: fix build-in command function
+        echo "   Shutting down server"
         as_user "echo stop > $fifo"
         kill $(ps -o pid,cmd --no-headers --ppid $$ | grep tail | awk '{print $1}')
         return 1
@@ -340,6 +341,7 @@ server_start() {
       *"**** FAILED TO BIND TO PORT!")
         echo "   $log_line_message"
         # TODO: fix build-in command function
+        echo "   Shutting down server"
         as_user "echo stop > $fifo"
         kill $(ps -o pid,cmd --no-headers --ppid $$ | grep tail | awk '{print $1}')
         return 1
