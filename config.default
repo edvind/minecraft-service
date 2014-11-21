@@ -11,11 +11,24 @@ location="/home/$USER/minecraft"
 # Name of jar
 jar="minecraft_server.jar"
 
+# Minecraft version
+# Possible values: "release" or "snapshot"
+version="release"
+
+# Auto accept the EULA
+# Mojang requires you to accept the End User License Agreement found at
+# https://account.mojang.com/documents/minecraft_eula in order to start
+# recent versions of the server. This can be a tedious job for people
+# regularly updating and managing different servers if one has already
+# accepted the license agreement once in the past. Switching this setting
+# to "true" will let this script change eula.txt automagically.
+eula=false
+
 # Initial and maximum memory
 mem_init="1024M"
 mem_max="1024M"
 
-# Java executable path and invocation
+# Java path and invocation
 java="$(which java)"
 invocation="-Xms$mem_init -Xmx$mem_max -jar $jar nogui"
 
