@@ -42,7 +42,7 @@ FAQ
 
 Q: What if I don't have a server to point the full server path in the config?
 
-A: There's a simple installation script you can run from the command line: `bash <(wget -qO- https://gist.githubusercontent.com/edvind/c1e0afbd40006f6183f3/raw/022aa94e69a59ac14f94f6a214442791850c7483/install.sh)` which will provide a guided installation and download of minecraft_server.jar
+A: There's a simple installation script you can run from the command line: `bash <(wget -qO- https://gist.githubusercontent.com/edvind/c1e0afbd40006f6183f3/raw/0064265e9e9fc1ce5dc1b0ca9c3cdc042a94e589/install.sh)` which will provide a guided installation and download of minecraft_server.jar
 
 
 Q: How do I configure multiple servers?
