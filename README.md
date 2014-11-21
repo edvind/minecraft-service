@@ -52,4 +52,4 @@ A: Symlink (or copy) the minecraft script to an init.d script with a different n
 
 Q: How do I send a command to the server?
 
-A: Either use the built-in command using `service minecraft command "server command here"` or echo to specified fifo in config; eg. ´echo "your command here" > /path/to/console.input`
+A: Either use the built-in command using `service minecraft command "server command here"` or echo to specified fifo in config; eg. `echo "your command here" > /path/to/console.input`
