@@ -12,6 +12,9 @@
 #/etc/init.d/minecraft
 # Bash 4.2+
 
+# Debug
+#set -o verbose
+
 # Name and (real)location of script
 name=$(basename $0)
 #scriptpath="$(dirname "$(readlink -f "$0")")"
@@ -25,6 +28,7 @@ else
   location="/home/$USER/minecraft"
   jar="minecraft_server.jar"
   version="release"
+  eula="false"
   mem_init="1024M"
   mem_max="1024M"
   java="$(which java)"
@@ -35,6 +39,7 @@ else
 fi
 
 # Variables
+location_jars="$location"
 log_start_regex="Starting minecraft server version (.*)"
 server_properties_file="$location/server.properties"
 server_properties_regex="^([a-z-]*)=(.*)"
@@ -58,6 +63,7 @@ as_user() {
   fi
 }
 
+# Check if array contains value matching provided regex
 array_contains() {
   local array e value
   value="$1"
@@ -130,12 +136,9 @@ server_command() {
     "^Unknown command. Try /help for a list of commands" # 1.3.1 (1.3) and later
   )
 
-#  Debug  
-#  echo " < $1"
-  
   timestamp=$(date +%s)
   
-  as_user "echo \"$1\" > $fifo"
+  as_user "printf \"%s\n\"  \"$1\" > $fifo"
   
   if server_version; then
     tail -f $log | while read log_line; do
@@ -146,19 +149,19 @@ server_command() {
       [[ $log_line_timestamp -lt $timestamp ]] && continue
       
       if array_contains "$log_line_message" message[@]; then
-        echo "   $log_line_message"
+        printf "   %s\n" "$log_line_message"
         kill $(ps -o pid,cmd --no-headers --ppid $$ | grep tail | awk '{print $1}')
         return 0
       elif array_contains "$log_line_message" failed[@]; then
-        echo "   $log_line_message"
+        printf "   %s\n" "$log_line_message"
         kill $(ps -o pid,cmd --no-headers --ppid $$ | grep tail | awk '{print $1}')
         return 1
       elif array_contains "$log_line_message" unknown[@]; then
-        echo "   Unknown console command"
+        printf "   %s\n" "Unknown console command"
         kill $(ps -o pid,cmd --no-headers --ppid $$ | grep tail | awk '{print $1}')
         return 1
       elif [[ ${#message[@]} -eq 0 ]]; then
-        echo "   $log_line_message"
+        printf "   %s\n" "$log_line_message"
         kill $(ps -o pid,cmd --no-headers --ppid $$ | grep tail | awk '{print $1}')
         return 2
       else
@@ -173,7 +176,7 @@ server_command() {
       fi
     done
   else
-    echo "   Sent command: $1"
+    printf "   %s\n" "Sent command: $1"
     return 2
   fi
 }
@@ -192,6 +195,47 @@ server_is_running() {
       return 0
     fi
   fi
+}
+
+server_download() {
+  # Usage
+  #   server_download <version>
+  # Return
+  #   0 if download succeeded
+  #   1 if download failed
+  
+  local version_download
+  
+  version_download="$1"
+  
+  server_url="https://s3.amazonaws.com/Minecraft.Download/versions/$version_download/minecraft_server.$version_download.jar"
+  
+  if [ $(whoami) = $user ]; then
+    printf "   %s" "Downloading..."
+    wget --progress=dot -N -P $location_jars $server_url 2>&1 | \
+    grep -oP --line-buffered "(\d{1,3})%" | \
+    while read line; do
+      printf "\r   %s %s" "Downloading..." "$line"
+    done; test ${PIPESTATUS[0]} -eq 0 && printf "\r   %s %s\n" "Downloading..." "100%" || printf "\r   %s %s\n" "Downloading..." "failed"
+  else
+    sudo -u $user /bin/bash -c "wget -N -P $location_jars $server_url"
+    sudo -u $user /bin/bash -c "chown $user:$user $location_jars/minecraft_server.$version_download.jar"
+  fi
+  
+  case "$?" in
+    1)  return 1 ;;
+  esac
+  
+  return 0
+  
+}
+
+server_eula() {
+  # Return
+  #   0 if eula.txt was written
+  #   1 if eula.txt was not written
+  as_user "printf \"eula=true\" > \"$location/eula.txt\"" &> /dev/null || return 1
+  return 0
 }
 
 server_log() {
@@ -303,11 +347,15 @@ server_start() {
   # Create fifo if it doesn't exist
   [ -p "$fifo" ] || as_user "mkfifo $fifo"
   
+  if [[ $eula = "true" ]]; then
+    server_eula
+  fi
+  
   # Start server
   as_user "tail -n +1 -f --pid=\$$ $fifo | { $java $invocation nuid=$name-nuid &> $log; kill \$$; }" &> /dev/null &
   
   # Wait until current log exists
-  echo "   Initializing..."
+  printf "   %s\n" "Initializing..."
   until [ -r $log ] && [ $(date +%s -r $log ) -gt $timestamp ]; do
     sleep 1
   done
@@ -324,30 +372,30 @@ server_start() {
       ;;
       *"Starting minecraft server"*)
         if server_version "update"; then
-          echo "   Server version: $version_current"
+          printf "   %s\n" "Server version: $version_current"
         fi
       ;;
       *"To start the server with more ram, launch it as \"java -Xmx1024M -Xms1024M -jar minecraft_server.jar\"")
-        echo "   To start the server with more ram, edit /etc/default/$name"
+        printf "   %s\n" "To start the server with more ram, edit /etc/default/$name"
       ;;
       *"You need to agree to the EULA in order to run the server. Go to eula.txt for more info.")
-        echo "   $log_line_message"
+        printf "   %s\n" "$log_line_message"
         # TODO: fix build-in command function
-        echo "   Shutting down server"
-        as_user "echo stop > $fifo"
+        printf "   %s\n" "Shutting down server"
+        as_user "printf \"%s\n\" \"stop\" > $fifo"
         kill $(ps -o pid,cmd --no-headers --ppid $$ | grep tail | awk '{print $1}')
         return 1
       ;;
       *"**** FAILED TO BIND TO PORT!")
-        echo "   $log_line_message"
+        printf "   %s\n" "$log_line_message"
         # TODO: fix build-in command function
-        echo "   Shutting down server"
-        as_user "echo stop > $fifo"
+        printf "   %s\n" "Shutting down server"
+        as_user "printf \"%s\n\" \"stop\" > $fifo"
         kill $(ps -o pid,cmd --no-headers --ppid $$ | grep tail | awk '{print $1}')
         return 1
       ;;
       *)
-        [ -z "$log_line_message" ] || echo "   $log_line_message"
+        [ -z "$log_line_message" ] || printf "   %s\n" "$log_line_message"
       ;;
     esac
     
@@ -359,6 +407,10 @@ server_stop() {
   #   0 if server has been stopped
   #   1 if server could not be stopped
   
+  server_command "save-on"
+  sleep 1
+  server_command "save-all"
+  sleep 1
   server_command "stop"
   
   # Sleep until server is stopped
@@ -370,62 +422,24 @@ server_stop() {
 }
 
 server_update() {
+  # Usage
+  #   server_update <version>
   # Return
   #   0 if server has been updated
   #   1 if server has not been updated
   
-  if [[ -z $version_online ]]; then
-    server_update_check
-    case "$?" in
-      2) return 1 ;;
-    esac  
-  fi
+  local version_update
   
-  server_url="https://s3.amazonaws.com/Minecraft.Download/versions/$version_online/minecraft_server.$version_online.jar"
+  version_update="$1"
   
-  if [ $(whoami) = $user ]; then
-    printf "   %s" "Downloading..."
-    wget --progress=dot -N -P $location $server_url 2>&1 | \
-    grep -oP --line-buffered "(\d{1,3})%" | \
-    while read line; do
-      printf "\r   %s %s" "Downloading..." "$line"
-    done; test ${PIPESTATUS[0]} -eq 0 && printf "\r   %s %s\n" "Downloading..." "100%" || printf "\r   %s %s\n" "Downloading..." "failed"
+  # TODO: read as user
+  if [[ -r "$location_jars/minecraft_server.$version_update.jar" ]]; then
+    as_user "rm $location/minecraft_server.jar && mv $location_jars/minecraft_server.$version_update.jar $location/minecraft_server.jar"
+    return 0
   else
-    sudo -u $user /bin/bash -c "wget -N -P $location $server_url"
-    sudo -u $user /bin/bash -c "chown $user:$user $location/minecraft_server.$version_online.jar"
+    return 1
   fi
-  
-  case "$?" in
-    1)  return 1 ;;
-  esac
-  
-  server_is_running
-  case "$?" in
-    0)
-      log_daemon_msg "Stopping $desc"
-      server_stop
-      case "$?" in
-        0)
-          log_daemon_msg "Updating minecraft_server.jar"
-          sleep 1
-          as_user "rm $location/minecraft_server.jar && mv $location/minecraft_server.$version_online.jar $location/minecraft_server.jar"
-          
-          log_daemon_msg "Starting $desc"
-          server_start
-          case "$?" in
-            0) return 0 ;;
-            1) return 1 ;;
-          esac
-        ;;
-        1) return 1 ;;
-      esac
-    ;;
-    1)
-      log_daemon_msg "Updating minecraft_server.jar"
-      as_user "rm $location/minecraft_server.jar && mv $location/minecraft_server.$version_online.jar $location/minecraft_server.jar"
-      return 0
-    ;;
-  esac
+
 }
 
 server_update_check() {
@@ -433,8 +447,15 @@ server_update_check() {
   #   0 if online version differs from installed minecraft_server.jar
   #   1 if theres no difference between online and local version numbers
   #   2 if an error occured
+  #
+  # TODO: Add check for valid $version value
   
-  local json_regex line 
+  local json_regex line
+  
+  if [ ! $version = "release" ] && [ ! $version = "snapshot" ]; then
+    printf "   %s\n" "Error: version parameter in config must be set to either \"release\" or \"snapshot\""
+    return 2
+  fi
   
   json_regex="\"($version)\": \"(.*)\""
   
@@ -463,7 +484,6 @@ server_version() {
   #   0 if version value is stored in $version_current
   #   1 if server $version_current could not be determined
   #
-  # TODO: Probably should limit the while array to 10 lines or something. ( In case of huge logfile )
   
   local arg=$1 line
   
@@ -593,32 +613,73 @@ case "$1" in
         log_daemon_msg "New $version available: $version_online (currently running $version_current)"
       ;;
       1)
-        log_daemon_msg "Server's running latest $version ($version_current)"
+        log_daemon_msg "$desc is running latest $version ($version_current)"
       ;;
-      2)
-        log_daemon_msg "There was a problem running check-update"
-      ;;
+      2) log_end_msg 1; exit 1 ;;
     esac
   ;;
   update)
+    log_daemon_msg "Checking for new version tagged \"$version\""
     server_update_check
     case "$?" in
       0)
-        log_daemon_msg "Starting update to new $version: $version_online"
-        server_update
+        server_is_running
         case "$?" in
-          0)
-            log_daemon_msg "Successfully updated server to $version: $version_online"
-            log_end_msg 0
+          0)  # Update procedure when server is running
+            # 1 Download
+            log_daemon_msg "Downloading minecraft_server.$version_online.jar"
+            server_download "$version_online"
+            case "$?" in
+              1) log_end_msg 1; exit 1 ;;
+            esac
+            
+            # 2 Stop
+            log_daemon_msg "Stopping $desc"
+            server_stop
+            case "$?" in
+              1) log_end_msg 1; exit 1 ;;
+            esac
+            
+            # 3 Update
+            log_daemon_msg "Updating minecraft_server.jar"
+            server_update "$version_online"
+            case "$?" in
+              1) log_end_msg 1; exit 1 ;;
+            esac
+            
+            # 4 Start
+            log_daemon_msg "Starting $desc"
+            server_start
+            case "$?" in
+              0) log_end_msg 0 ;;
+              1) log_end_msg 1; exit 1 ;;
+            esac
           ;;
-          1) log_end_msg 1; exit 1 ;;
+          1)  # Update procedure when server is not running
+            # 1 Download
+            log_daemon_msg "Downloading minecraft_server.$version_online.jar"
+            server_download "$version_online"
+            case "$?" in
+              1) log_end_msg 1; exit 1 ;;
+            esac
+            
+            # 2 Update
+            log_daemon_msg "Updating minecraft_server.jar"
+            server_update "$version_online"
+            case "$?" in
+              0)
+                log_daemon_msg "Successfully updated server to $version: $version_online"
+                log_end_msg 0
+              ;;
+              1) log_end_msg 1; exit 1 ;;
+            esac
+          ;;
         esac
       ;;
       1)
-        log_daemon_msg "Server's already running latest $version ($version_current)"
+        log_daemon_msg "$desc is already running latest $version ($version_current)"
       ;;
       2)
-        log_daemon_msg "Checking for new $version"
         log_end_msg 1
         exit 1
       ;;
@@ -629,22 +690,23 @@ case "$1" in
     case "$?" in
       0)
         if server_version; then
-          echo "$desc is running version: $version_current"
+          log_daemon_msg "$desc is running version: $version_current"
         else
-          echo "Could not find version of $desc"
+          log_daemon_msg "Could not find version of $desc"
         fi
       ;;
       1)
-        log_daemon_msg "$desc is not running"
         if server_version; then
-          echo "$desc was running version: $version_current"
+          log_daemon_msg "$desc was running version: $version_current"
+        else
+          log_daemon_msg "$desc is not running"
         fi
       ;;
     esac
   ;;
 # Catch all
   *)
-    echo "Usage: service $name {start|stop|status|restart|reload|command|check-update|update|version}" >&2
+    printf "%s\n" "Usage: service $name {start|stop|status|restart|reload|command|check-update|update|version}" >&2
     exit 3
   ;;
 esac
