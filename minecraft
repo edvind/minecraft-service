@@ -699,8 +699,8 @@ case "$1" in
     esac
   ;;
 # Catch all
-  *)
-    printf "%s\n" "Usage: service $name {start|stop|status|restart|reload|command|check-update|update|version}" >&2
+  help|*)
+    printf "%s\n" "Usage: service $name {start|stop|status|restart|reload|command|check-update|update|version|help}" >&2
     exit 3
   ;;
 esac
