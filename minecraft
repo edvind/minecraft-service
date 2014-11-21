@@ -145,7 +145,7 @@ server_command() {
   
       server_log "$log_line"
       
-      # If log timestamp is less than our reference timestamp, skip iteration
+      # If log timestamp is less than command timestamp, skip iteration
       [[ $log_line_timestamp -lt $timestamp ]] && continue
       
       if array_contains "$log_line_message" message[@]; then
@@ -380,7 +380,6 @@ server_start() {
       ;;
       *"You need to agree to the EULA in order to run the server. Go to eula.txt for more info.")
         printf "   %s\n" "$log_line_message"
-        # TODO: fix build-in command function
         printf "   %s\n" "Shutting down server"
         as_user "printf \"%s\n\" \"stop\" > $fifo"
         kill $(ps -o pid,cmd --no-headers --ppid $$ | grep tail | awk '{print $1}')
@@ -388,7 +387,6 @@ server_start() {
       ;;
       *"**** FAILED TO BIND TO PORT!")
         printf "   %s\n" "$log_line_message"
-        # TODO: fix build-in command function
         printf "   %s\n" "Shutting down server"
         as_user "printf \"%s\n\" \"stop\" > $fifo"
         kill $(ps -o pid,cmd --no-headers --ppid $$ | grep tail | awk '{print $1}')
@@ -447,8 +445,6 @@ server_update_check() {
   #   0 if online version differs from installed minecraft_server.jar
   #   1 if theres no difference between online and local version numbers
   #   2 if an error occured
-  #
-  # TODO: Add check for valid $version value
   
   local json_regex line
   
