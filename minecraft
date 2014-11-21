@@ -405,8 +405,6 @@ server_stop() {
   #   0 if server has been stopped
   #   1 if server could not be stopped
   
-  server_command "save-on"
-  sleep 1
   server_command "save-all"
   sleep 1
   server_command "stop"
