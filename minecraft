@@ -25,7 +25,8 @@ if [ -r /etc/default/$name ]; then
 else
   # Default values
   user="minecraft"
-  location="/home/$USER/minecraft"
+  server="/home/$user/minecraft"
+  resources="/home/$user/minecraft-resources"
   jar="minecraft_server.jar"
   version="release"
   eula="false"
@@ -34,14 +35,14 @@ else
   java="$(which java)"
   invocation="-Xms$mem_init -Xmx$mem_max -jar $jar nogui"
   desc="Minecraft server"
-  fifo="$location/console.input"
-  log="$location/console.output"
+  fifo="$server/console.input"
+  log="$server/console.output"
 fi
 
 # Variables
-location_jars="$location"
+resource_versions="$resources/versions"
 log_start_regex="Starting minecraft server version (.*)"
-server_properties_file="$location/server.properties"
+server_properties_file="$server/server.properties"
 server_properties_regex="^([a-z-]*)=(.*)"
 versions_json=http://s3.amazonaws.com/Minecraft.Download/versions/versions.json
 
@@ -204,26 +205,28 @@ server_download() {
   #   0 if download succeeded
   #   1 if download failed
   
-  local version_download
+  local version_download server_url
   
   version_download="$1"
   
   server_url="https://s3.amazonaws.com/Minecraft.Download/versions/$version_download/minecraft_server.$version_download.jar"
   
+  as_user "mkdir -p $resource_versions"
+  
   if [ $(whoami) = $user ]; then
     printf "   %s" "Downloading..."
-    wget --progress=dot -N -P $location_jars $server_url 2>&1 | \
+    wget --progress=dot -N -P $resource_versions $server_url 2>&1 | \
     grep -oP --line-buffered "(\d{1,3})%" | \
     while read line; do
       printf "\r   %s %s" "Downloading..." "$line"
     done; test ${PIPESTATUS[0]} -eq 0 && printf "\r   %s %s\n" "Downloading..." "100%" || printf "\r   %s %s\n" "Downloading..." "failed"
   else
-    sudo -u $user /bin/bash -c "wget -N -P $location_jars $server_url"
-    sudo -u $user /bin/bash -c "chown $user:$user $location_jars/minecraft_server.$version_download.jar"
+    sudo -u $user /bin/bash -c "wget -N -P $resource_versions $server_url"
+    sudo -u $user /bin/bash -c "chown $user:$user $resource_versions/minecraft_server.$version_download.jar"
   fi
   
   case "$?" in
-    1)  return 1 ;;
+    1) return 1 ;;
   esac
   
   return 0
@@ -234,7 +237,7 @@ server_eula() {
   # Return
   #   0 if eula.txt was written
   #   1 if eula.txt was not written
-  as_user "printf \"eula=true\" > \"$location/eula.txt\"" &> /dev/null || return 1
+  as_user "printf \"eula=true\" > \"$server/eula.txt\"" &> /dev/null || return 1
   return 0
 }
 
@@ -316,7 +319,7 @@ server_reload() {
   elif [[ "${server_setting[white-list]}" = "true" ]]; then
     whitelist="on"
   else
-    log_daemon_msg "Reading white-list setting in $location/server.properties"
+    log_daemon_msg "Reading white-list setting in $server/server.properties"
     return 1
   fi
   
@@ -342,7 +345,7 @@ server_start() {
   
   timestamp=$(date '+%s')
   
-  cd $location || exit 1
+  cd $server || exit 1
   
   # Create fifo if it doesn't exist
   [ -p "$fifo" ] || as_user "mkfifo $fifo"
@@ -429,8 +432,8 @@ server_update() {
   version_update="$1"
   
   # TODO: read as user
-  if [[ -r "$location_jars/minecraft_server.$version_update.jar" ]]; then
-    as_user "rm $location/minecraft_server.jar && mv $location_jars/minecraft_server.$version_update.jar $location/minecraft_server.jar"
+  if [[ -r "$resource_versions/minecraft_server.$version_update.jar" ]]; then
+    as_user "rm $server/$jar && ln $resource_versions/minecraft_server.$version_update.jar $server/$jar"
     return 0
   else
     return 1
