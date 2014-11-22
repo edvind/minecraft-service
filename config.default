@@ -6,13 +6,24 @@
 user="minecraft"
 
 # Location of server files
-location="/home/$USER/minecraft"
+# Full path to directory containing a vanilla Minecraft server.
+server="/home/$user/minecraft"
+
+# Location of resource directory
+# Full path to where server jars and version information will be stored.
+# This directory can be shared by multiple init scripts (if they are run
+# by the same user), resulting in fewer minecraft_server.jar downloads
+# when updating.
+resources="/home/$user/minecraft-resources"
 
 # Name of jar
 jar="minecraft_server.jar"
 
-# Minecraft version
-# Possible values: "release" or "snapshot"
+# Minecraft update version
+# Possible values: "release", "snapshot" or a specified version "x.x.x"
+# (see https://mcversions.net for a list of available versions).
+# Run `service minecraft update` after you've changed this value to update
+# server to specified version.
 version="release"
 
 # Auto accept the EULA
@@ -22,7 +33,7 @@ version="release"
 # regularly updating and managing different servers if one has already
 # accepted the license agreement once in the past. Switching this setting
 # to "true" will let this script change eula.txt automagically.
-eula=false
+eula="false"
 
 # Initial and maximum memory
 mem_init="1024M"
@@ -36,7 +47,7 @@ invocation="-Xms$mem_init -Xmx$mem_max -jar $jar nogui"
 desc="Minecraft server"
 
 # Console input fifo location
-fifo="$location/console.input"
+fifo="$server/console.input"
 
 # Console output log location
-log="$location/console.output"
+log="$server/console.output"
