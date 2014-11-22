@@ -20,8 +20,10 @@ resources="/home/$user/minecraft-resources"
 jar="minecraft_server.jar"
 
 # Minecraft update version
-# Possible values: "release" or "snapshot"
-# Branch where the init script will check for new server versions.
+# Possible values: "release", "snapshot" or a specified version "x.x.x"
+# (see https://mcversions.net for a list of available versions).
+# Run `service minecraft update` after you've changed this value to update
+# server to specified version.
 version="release"
 
 # Auto accept the EULA
