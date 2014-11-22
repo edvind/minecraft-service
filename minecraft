@@ -488,6 +488,8 @@ server_version() {
     [[ ! -z "$version_current" ]] && return 0
   fi
   
+  [[ -r $log ]] || return 1
+  
   while read line; do
     [[ $line =~ $log_start_regex ]]
     [[ ! -z ${BASH_REMATCH[1]} ]] && version_current="${BASH_REMATCH[1]}" && break
