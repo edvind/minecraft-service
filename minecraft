@@ -742,9 +742,9 @@ case "$1" in
     case "$?" in
       0)
         if [ $version = "release" -o $version = "snapshot" ]; then
-          log_daemon_msg "New $version available: $version_online (currently running $version_current)"
+          log_daemon_msg "New $version available: $version_online"
         else
-          log_daemon_msg "Specified version ($version) available for download, currently running $version_current"
+          log_daemon_msg "Specified version ($version) is available for download."
         fi
       ;;
       1)
@@ -807,6 +807,7 @@ case "$1" in
             server_update "$version_online"
             case "$?" in
               0)
+                as_user "printf \"%s\n\" \"Starting minecraft server version $version_online\" > $log"
                 log_daemon_msg "Successfully updated server to $version_online"
                 log_end_msg 0
               ;;
@@ -837,7 +838,7 @@ case "$1" in
       ;;
       1)
         if server_version; then
-          log_daemon_msg "$desc was running version: $version_current"
+          log_daemon_msg "$desc has version $version_current installed."
         else
           log_daemon_msg "$desc is not running"
         fi
