@@ -490,58 +490,67 @@ server_update() {
 
 server_update_check() {
   # Return
-  #   0 if online version based on config differs from installed minecraft_server.jar
+  #   0 if there is a version available for download
   #   1 if theres no difference between online and local version numbers
-  #   2 if an error occured
+  #   2 if an error occured (prints error message)
   
-  local json_regex line
+  local latest_regex line
   
-  if [ ! $version = "release" ] && [ ! $version = "snapshot" ]; then
-    if online_version_exists "$version"; then
-      if server_version; then
-        if [[ "$version_current" = "$version" ]]; then
-          return 1
-        else
-          if online_version_downloadable "$version"; then
-            version_online="$version"
-            return 0
-          else
-            printf "   %s\n" "Specified version: $version is not available for download."
-            return 2
-          fi
-        fi
-      else
-        return 2
+  if [ "$version" = "release" -o "$version" = "snapshot" ]; then
+
+    latest_regex="\"($version)\": \"(.*)\""
+  
+    as_user "mkdir -p $resources" || return 2
+    # TODO: wget error message
+    as_user "wget -qN -P $resources $versions_json" || return 2
+    
+    while read line; do
+      if [[ $line =~ $latest_regex ]]; then
+        version_online="${BASH_REMATCH[2]}"
+        break
       fi
-    else
-      printf "   %s\n" "Error: version parameter in config must be set to either \"release\", \"snapshot\" or an available version"
+    done <"$resources/versions.json"
+    
+    if [ -z "$version_online" ]; then
+      log_failure_msg "Could not determine latest $version version."
       return 2
     fi
-  fi
-  
-  json_regex="\"($version)\": \"(.*)\""
-  
-  as_user "mkdir -p $resources"
-  as_user "wget -qN -P $resources $versions_json" || return 2
-  
-  while read line; do
-    if [[ $line =~ $json_regex ]]; then
-      version_online="${BASH_REMATCH[2]}"
-      break
-    fi
-  done <"$resources/versions.json"
-  
-  [[ -z $version_online ]] && return 2
-  
-  if server_version; then
-    if [[ "$version_current" = "$version_online" ]]; then
-      return 1
+    
+    if server_version; then
+      if [ "$version_current" = "$version_online" ]; then
+        return 1
+      else
+        return 0
+      fi
     else
-      return 0
+      log_failure_msg "Could not determine local server version from log."
+      return 2
     fi
+
+  elif online_version_exists "$version"; then
+    
+    if server_version; then
+      if [ "$version_current" = "$version" ]; then
+        return 1
+      else
+        if online_version_downloadable "$version"; then
+          version_online="$version"
+          return 0
+        else
+          log_failure_msg "Specified version ($version) is not available for download."
+          return 2
+        fi
+      fi
+    else
+      log_failure_msg "Could not determine local server version from log."
+      return 2
+    fi
+    
   else
+    log_failure_msg "Invalid version value in configuration file: $version"
     return 2
   fi
+
 }
 
 server_version() {
@@ -549,9 +558,9 @@ server_version() {
   #   0 if version value is stored in $version_current
   #   1 if server $version_current could not be determined
   
-  local arg=$1 line
+  local opt=$1 line
   
-  if [[ ! $arg = "update" ]]; then
+  if [[ ! $opt = "update" ]]; then
     [[ ! -z "$version_current" ]] && return 0
   fi
   
@@ -586,20 +595,22 @@ server_version_minimum() {
 online_version_downloadable() {
   # Usage
   #   online_version_downloadable <x.x.x>
+  # Description
+  #   Checks if provided version is downloadable from server
   # Return
   #   0 if server version x.x.x is downloadable
   #   1 if server version x.x.x is not downloadable or check failed
-  local statuscode server_url
+  local download_url statuscode version="$1"
   
-  server_url="https://s3.amazonaws.com/Minecraft.Download/versions/$1/minecraft_server.$1.jar"
-  statuscode=$(wget --spider -S "$server_url" 2>&1 | grep "HTTP/" | awk '{print $2}')
+  download_url="https://s3.amazonaws.com/Minecraft.Download/versions/$version/minecraft_server.$version.jar"
   
-  if [ $statuscode = "200" ]; then
+  statuscode=$(wget --spider -S "$download_url" 2>&1 | grep "HTTP/" | awk '{print $2}')
+  
+  if [ "$statuscode" = "200" ]; then
     return 0
   else
     return 1
   fi
-  
 }
 
 online_version_exists() {
@@ -607,14 +618,15 @@ online_version_exists() {
   #   online_version_exists <x.x.x>
   # Return
   #   0 if server version x.x.x exists
-  #   1 if server version x.x.x does not exists or check failed
+  #   1 if server version x.x.x does not exists
+  #   2 if there was an error saving or downloading versions.json
   
-  local id_regex line version_exists
+  local id_regex line version="$1" version_exists
   
-  as_user "mkdir -p $resources"
-  as_user "wget -qN -P $resources $versions_json" || return 1
+  as_user "mkdir -p $resources" || return 2
+  as_user "wget -qN -P $resources $versions_json" || return 2
   
-  id_regex="\"id\": \"($1)\""
+  id_regex="\"id\": \"($version)\""
   
   while read line; do
     if [[ $line =~ $id_regex ]]; then
@@ -635,9 +647,7 @@ case "$1" in
   start)
     server_is_running
     case "$?" in
-      0)
-        log_daemon_msg "$desc is already running"
-      ;;
+      0) log_daemon_msg "$desc is already running" ;;
       1)
         log_daemon_msg "Starting $desc"
         server_start
@@ -659,22 +669,14 @@ case "$1" in
           1) log_end_msg 1; exit 1 ;;
         esac
       ;;
-      1)
-        log_daemon_msg "$desc is not running"
-      ;;
+      1) log_daemon_msg "$desc is not running" ;;
     esac
   ;;
   status)
     server_is_running
     case "$?" in
-      0)
-        log_daemon_msg "$desc is running"
-        exit 0;
-      ;;
-      1)
-        log_daemon_msg "$desc is not running"
-        exit 3;
-      ;;
+      0) log_daemon_msg "$desc is running"; exit 0 ;;
+      1) log_daemon_msg "$desc is not running"; exit 3 ;;
     esac
   ;;
   reload)
@@ -688,9 +690,7 @@ case "$1" in
           1) log_end_msg 1; exit 1 ;;
         esac
       ;;
-      1)
-        log_daemon_msg "$desc is not running"
-      ;;
+      1) log_daemon_msg "$desc is not running" ;;
     esac
   ;;
   restart|force-reload)
@@ -731,25 +731,24 @@ case "$1" in
         case "$?" in
           0) log_end_msg 0 ;;
           1) log_end_msg 1; exit 1 ;;
+          2) exit 0 ;;
         esac
       ;;
-      1)
-        log_daemon_msg "$desc is not running"
-      ;;
+      1) log_daemon_msg "$desc is not running" ;;
     esac
   ;;
   check-update)
     server_update_check
     case "$?" in
       0)
-        if [ "$(version_timestamp \"$version\")" -gt "$(version_timestamp \"$version_current\")" ]; then
+        if [ $version = "release" -o $version = "snapshot" ]; then
           log_daemon_msg "New $version available: $version_online (currently running $version_current)"
         else
-          log_daemon_msg "$version available for download (currently running $version_current)"
+          log_daemon_msg "Specified version ($version) available for download, currently running $version_current"
         fi
       ;;
       1)
-        if [ $version = "release" ] or [ $version = "snapshot" ]; then
+        if [ $version = "release" -o $version = "snapshot" ]; then
           log_daemon_msg "$desc is running latest $version ($version_current)"
         else
           log_daemon_msg "$desc is running specified version in configuration ($version_current)"
@@ -817,16 +816,13 @@ case "$1" in
         esac
       ;;
       1)
-        if [ $version = "release" ] or [ $version = "snapshot" ]; then
+        if [ $version = "release" -o $version = "snapshot" ]; then
           log_daemon_msg "$desc is running latest $version ($version_current)"
         else
-          log_daemon_msg "$desc is running specified version in configuration ($version_current)"
+          log_daemon_msg "$desc is running specified version defined in configuration ($version_current)"
         fi
       ;;
-      2)
-        log_end_msg 1
-        exit 1
-      ;;
+      2) log_end_msg 1; exit 1 ;;
     esac
   ;;
   version)
