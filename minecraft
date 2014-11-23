@@ -780,7 +780,7 @@ case "$1" in
             esac
             
             # 3 Update
-            log_daemon_msg "Updating minecraft_server.jar"
+            log_daemon_msg "Installing version $version_online"
             server_update "$version_online"
             case "$?" in
               1) log_end_msg 1; exit 1 ;;
@@ -790,7 +790,10 @@ case "$1" in
             log_daemon_msg "Starting $desc"
             server_start
             case "$?" in
-              0) log_end_msg 0 ;;
+              0)
+                log_daemon_msg "Successfully installed version $version_online"
+                log_end_msg 0
+              ;;
               1) log_end_msg 1; exit 1 ;;
             esac
           ;;
@@ -803,12 +806,12 @@ case "$1" in
             esac
             
             # 2 Update
-            log_daemon_msg "Updating minecraft_server.jar"
+            log_daemon_msg "Installing version $version_online"
             server_update "$version_online"
             case "$?" in
               0)
                 as_user "printf \"%s\n\" \"Starting minecraft server version $version_online\" > $log"
-                log_daemon_msg "Successfully updated server to $version_online"
+                log_daemon_msg "Successfully installed version $version_online"
                 log_end_msg 0
               ;;
               1) log_end_msg 1; exit 1 ;;
