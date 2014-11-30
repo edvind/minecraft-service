@@ -15,9 +15,8 @@
 # Debug
 #set -o verbose
 
-# Name and (real)location of script
+# Name of script
 name=$(basename $0)
-#scriptpath="$(dirname "$(readlink -f "$0")")"
 
 # Read configuration variable file if it is present
 if [ -r /etc/default/$name ]; then
