@@ -5,7 +5,7 @@ A Minecraft server init script for debian based distributions that aims to be a 
 
 This script does not provide fancy features such as compatibility with modified servers or ramdisk, there's already a plethora of great scripts that can handle those kind of features. Instead, this script provides a simple base that doesn't require any extra installs and can be used for writing your own customized server environment.
 
-Latest code can be found in development branch.
+Latest code can be found in development branch. Please report any bugs that you encounter.
 
 **Tested on**
 
