@@ -46,7 +46,7 @@ To create a user on Debian based systems you can run the command `adduser <usern
 Start it up
 -----------
 
-`service minecraft start` (or `/etc/init.d/minecraft start`) starts the server.
+`service minecraft start` (or `/etc/init.d/minecraft start`) starts the server. If you want the Minecraft server to be automatically started on system boot: `update-rc.d minecraft defaults`
 
 FAQ
 ---
