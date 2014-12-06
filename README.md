@@ -16,7 +16,7 @@ Features
 
 - Server commands using fifo
 - LSB standards for init scripts, see [Linux Standard Base Core Specification 3.1](http://refspecs.linuxbase.org/LSB_3.1.1/LSB-Core-generic/LSB-Core-generic/iniscrptact.html)
-- Multiple servers
+- Multiple server complatible
 - Updating
 
 Installation
