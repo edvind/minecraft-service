@@ -106,14 +106,16 @@ version_timestamp() {
   return 0
 }
 
-init_config() {
+service_config() {
   # Usage
-  #   init_config <setting> <value>
+  #   service_config <setting> <value>
   # Return
   #   0 if command was sent successfully
   #   1 if command was unknown or failed
   
   local setting=$1 value=$2 updated
+  
+  # TODO: Add check, eg. if "#" or something fishy
   
   updated="${setting}=\"${value}\""
   
@@ -376,6 +378,8 @@ server_properties_update() {
   #   0 if command was sent successfully
 
   local setting=$1 value=$2 updated
+  
+  # TODO: Add check, eg. if "#" or something fishy
   
   updated="${setting}=${value}"
   
@@ -787,7 +791,7 @@ case "$1" in
     case "$?" in
       0)
         log_daemon_msg "$desc is running, restart server for changes to take effect."
-        init_config "$2" "$3"
+        service_config "$2" "$3"
         case "$?" in
           0) log_end_msg 0 ;;
           1) log_end_msg 1; exit 1 ;;
@@ -795,7 +799,7 @@ case "$1" in
       ;;
       1)
         log_daemon_msg "Updating $desc init script configuration."
-        init_config "$2" "$3"
+        service_config "$2" "$3"
         case "$?" in
           0) log_end_msg 0 ;;
           1) log_end_msg 1; exit 1 ;;
