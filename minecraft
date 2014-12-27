@@ -108,13 +108,12 @@ version_timestamp() {
 
 init_config() {
   # Usage
-  #   init_config <variable> <setting>
+  #   init_config <setting> <value>
   # Return
   #   0 if command was sent successfully
   #   1 if command was unknown or failed
   
-  setting=$1
-  value=$2
+  local setting=$1 value=$2 updated
   
   updated="${setting}=\"${value}\""
   
@@ -367,6 +366,20 @@ server_properties() {
 
   done <$server_properties_file
   
+  return 0
+}
+
+server_properties_update() {
+  # Usage
+  #   server_properties_update <setting> <value>
+  # Return
+  #   0 if command was sent successfully
+
+  local setting=$1 value=$2 updated
+  
+  updated="${setting}=${value}"
+  
+  sudo sed -i 's#^'"$setting"'.*#'"$updated"'#' $server/server.properties
   return 0
 }
 
@@ -780,7 +793,35 @@ case "$1" in
           1) log_end_msg 1; exit 1 ;;
         esac
       ;;
-      1) init_config "$2" "$3" ;;
+      1)
+        log_daemon_msg "Updating $desc init script configuration."
+        init_config "$2" "$3"
+        case "$?" in
+          0) log_end_msg 0 ;;
+          1) log_end_msg 1; exit 1 ;;
+        esac
+      ;;
+    esac
+  ;;
+  properties)
+    server_is_running
+    case "$?" in
+      0)
+        log_daemon_msg "$desc is running, restart server for changes to take effect."
+        server_properties_update "$2" "$3"
+        case "$?" in
+          0) log_end_msg 0 ;;
+          1) log_end_msg 1; exit 1 ;;
+        esac
+      ;;
+      1)
+        log_daemon_msg "Updating $desc server.properties file."
+        server_properties_update "$2" "$3"
+        case "$?" in
+          0) log_end_msg 0 ;;
+          1) log_end_msg 1; exit 1 ;;
+        esac
+      ;;
     esac
   ;;
   check-update)
@@ -896,7 +937,7 @@ case "$1" in
   ;;
 # Catch all
   help|*)
-    printf "%s\n" "Usage: service $name {start|stop|status|restart|reload|command|config|check-update|update|version|help}" >&2
+    printf "%s\n" "Usage: service $name {start|stop|status|restart|reload|command|config|properties|check-update|update|version|help}" >&2
     exit 3
   ;;
 esac
