@@ -383,7 +383,7 @@ server_properties_update() {
   
   updated="${setting}=${value}"
   
-  sudo sed -i 's#^'"$setting"'.*#'"$updated"'#' $server_properties_file
+  sed -i 's#^'"$setting"'.*#'"$updated"'#' $server_properties_file
   return 0
 }
 
