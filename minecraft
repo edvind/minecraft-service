@@ -815,7 +815,7 @@ case "$1" in
         esac
       ;;
       1)
-        log_daemon_msg "Updating $desc server.properties file."
+        log_daemon_msg "Updating $desc properties."
         server_properties_update "$2" "$3"
         case "$?" in
           0) log_end_msg 0 ;;
