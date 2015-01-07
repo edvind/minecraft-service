@@ -188,28 +188,41 @@ server_command() {
   timestamp=$(date +%s)
   log_modified=$(stat -c %Y $log)
   
-#   timestamp_date=$(date +%F)
-#   log_modified_date=$(date -d @$log_modified +%F)
-#   
-#   echo "Timestamp date: $timestamp_date, Log modified date: $log_modified_date"
+  timestamp_date=$(date +%F)
+  log_modified_date=$(date -d @$log_modified +%F)
   
-#   if [ ! $timestamp_date = $log_modified_date ]; then
-#     echo "Flush file."
-#     if server_version; then
-#       echo "[$(date +%T)] [Init script/INFO]: Current minecraft server version $version_current" > $log
-#     else
-#       > $log
-#     fi
-#   fi
-  
-  as_user "printf \"%s\n\"  \"$1\" > $fifo"
+  # If logfile is from yesterday or older, start a new logfile so old entries aren't considered as current.
+  # This is due to the absense of dates in Minecraft log files
+  if [ ! $timestamp_date = $log_modified_date ]; then
+    if server_version; then
+      echo "[$(date +%T)] [Init script/INFO]: Current minecraft server version $version_current" > $log
+    else
+      echo "[$(date +%T)] [Init script/INFO]: Unknown server version" > $log
+    fi
+    
+    echo "[$(date +%T)] [Init script/INFO]: Regenerated $log at $timestamp" >> $log
+    echo "[$(date +%T)] [Init script/INFO]: For earlier logentries, see $server/logs" >> $log
+    
+    as_user "printf \"%s\n\"  \"list\" > $fifo"
+    
+    sleep 1
+    
+    timestamp=$(date +%s)
+    
+    as_user "printf \"%s\n\"  \"$1\" > $fifo"
+    
+    #sed -i 's/\x0//g' $log
+  else
+    as_user "printf \"%s\n\"  \"$1\" > $fifo"
+  fi
   
   if server_version; then
     tail -f $log | while read log_line; do
   
       server_log "$log_line"
-      
-#       echo "Logline: $log_line_timestamp, Timestamp: $timestamp"
+
+#      TODO: Debug line to be deleted in the future      
+#      echo "Logline: $log_line_timestamp, Timestamp: $timestamp"
       
       # If log timestamp is less than command timestamp, skip iteration
       [[ $log_line_timestamp -lt $timestamp ]] && continue
