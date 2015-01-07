@@ -443,8 +443,9 @@ server_start() {
   [ -f "$server/$jar" ] || exit 1
   cd $server || exit 1
   
-  # Create fifo if it doesn't exist
-  [ -p "$fifo" ] || as_user "mkfifo $fifo"
+  # Recreate fifo
+  [ -e "$fifo" ] && as_user "rm $fifo"
+  as_user "mkfifo $fifo"
   
   if [[ $eula = "true" ]]; then
     server_eula
