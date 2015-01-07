@@ -40,7 +40,7 @@ fi
 
 # Variables
 resource_versions="$resources/versions"
-log_start_regex="Starting minecraft server version (.*)"
+log_start_regex="minecraft server version (.*)"
 server_properties_file="$server/server.properties"
 server_properties_regex="^([a-z-]*)=(.*)"
 versions_json=http://s3.amazonaws.com/Minecraft.Download/versions/versions.json
@@ -103,6 +103,23 @@ version_timestamp() {
   
   printf "%s" $(date -d "$releasetime" +%s)
   
+  return 0
+}
+
+service_config() {
+  # Usage
+  #   service_config <setting> <value>
+  # Return
+  #   0 if command was sent successfully
+  #   1 if command was unknown or failed
+  
+  local setting=$1 value=$2 updated
+  
+  # TODO: Add check, eg. if "#" or something fishy
+  
+  updated="${setting}=\"${value}\""
+  
+  sudo sed -i 's#^'"$setting"'.*#'"$updated"'#' /etc/default/$name
   return 0
 }
 
@@ -169,13 +186,43 @@ server_command() {
   )
 
   timestamp=$(date +%s)
+  log_modified=$(stat -c %Y $log)
   
-  as_user "printf \"%s\n\"  \"$1\" > $fifo"
+  timestamp_date=$(date +%F)
+  log_modified_date=$(date -d @$log_modified +%F)
+  
+  # If logfile is from yesterday or older, start a new logfile so old entries aren't considered as current.
+  # This is due to the absense of dates in Minecraft log files
+  if [ ! $timestamp_date = $log_modified_date ]; then
+    if server_version; then
+      echo "[$(date +%T)] [Init script/INFO]: Current minecraft server version $version_current" > $log
+    else
+      echo "[$(date +%T)] [Init script/INFO]: Unknown server version" > $log
+    fi
+    
+    echo "[$(date +%T)] [Init script/INFO]: Regenerated $log at $timestamp" >> $log
+    echo "[$(date +%T)] [Init script/INFO]: For earlier logentries, see $server/logs" >> $log
+    
+    as_user "printf \"%s\n\"  \"list\" > $fifo"
+    
+    sleep 1
+    
+    timestamp=$(date +%s)
+    
+    as_user "printf \"%s\n\"  \"$1\" > $fifo"
+    
+    #sed -i 's/\x0//g' $log
+  else
+    as_user "printf \"%s\n\"  \"$1\" > $fifo"
+  fi
   
   if server_version; then
     tail -f $log | while read log_line; do
   
       server_log "$log_line"
+
+#      TODO: Debug line to be deleted in the future      
+#      echo "Logline: $log_line_timestamp, Timestamp: $timestamp"
       
       # If log timestamp is less than command timestamp, skip iteration
       [[ $log_line_timestamp -lt $timestamp ]] && continue
@@ -337,6 +384,22 @@ server_properties() {
   return 0
 }
 
+server_properties_update() {
+  # Usage
+  #   server_properties_update <setting> <value>
+  # Return
+  #   0 if command was sent successfully
+
+  local setting=$1 value=$2 updated
+  
+  # TODO: Add check, eg. if "#" or something fishy
+  
+  updated="${setting}=${value}"
+  
+  sed -i 's#^'"$setting"'.*#'"$updated"'#' $server_properties_file
+  return 0
+}
+
 server_reload() {
   # Return
   #   0 if server has been reloaded
@@ -393,8 +456,9 @@ server_start() {
   [ -f "$server/$jar" ] || exit 1
   cd $server || exit 1
   
-  # Create fifo if it doesn't exist
-  [ -p "$fifo" ] || as_user "mkfifo $fifo"
+  # Recreate fifo
+  [ -e "$fifo" ] && as_user "rm $fifo"
+  as_user "mkfifo $fifo"
   
   if [[ $eula = "true" ]]; then
     server_eula
@@ -736,6 +800,48 @@ case "$1" in
       1) log_daemon_msg "$desc is not running" ;;
     esac
   ;;
+  config)
+    server_is_running
+    case "$?" in
+      0)
+        log_daemon_msg "$desc is running, restart server for changes to take effect."
+        service_config "$2" "$3"
+        case "$?" in
+          0) log_end_msg 0 ;;
+          1) log_end_msg 1; exit 1 ;;
+        esac
+      ;;
+      1)
+        log_daemon_msg "Updating $desc init script configuration."
+        service_config "$2" "$3"
+        case "$?" in
+          0) log_end_msg 0 ;;
+          1) log_end_msg 1; exit 1 ;;
+        esac
+      ;;
+    esac
+  ;;
+  properties)
+    server_is_running
+    case "$?" in
+      0)
+        log_daemon_msg "$desc is running, restart server for changes to take effect."
+        server_properties_update "$2" "$3"
+        case "$?" in
+          0) log_end_msg 0 ;;
+          1) log_end_msg 1; exit 1 ;;
+        esac
+      ;;
+      1)
+        log_daemon_msg "Updating $desc properties."
+        server_properties_update "$2" "$3"
+        case "$?" in
+          0) log_end_msg 0 ;;
+          1) log_end_msg 1; exit 1 ;;
+        esac
+      ;;
+    esac
+  ;;
   check-update)
     server_update_check
     case "$?" in
@@ -849,7 +955,7 @@ case "$1" in
   ;;
 # Catch all
   help|*)
-    printf "%s\n" "Usage: service $name {start|stop|status|restart|reload|command|check-update|update|version|help}" >&2
+    printf "%s\n" "Usage: service $name {start|stop|status|restart|reload|command|config|properties|check-update|update|version|help}" >&2
     exit 3
   ;;
 esac
