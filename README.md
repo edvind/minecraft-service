@@ -10,6 +10,7 @@ Latest code can be found in development branch. Please report any bugs that you 
 **Tested on**
 
 - Ubuntu 14.04
+- Ubuntu 15.04
 
 Features
 --------
@@ -31,31 +32,50 @@ If you already have a server, you can skip to the Script part below. To install 
 To create a user on Debian based systems you can run the command `adduser <username>`. 
 
 
-**Script**
+**SysV (Ubuntu 14.04)**
 
 1. `git clone https://github.com/edvind/minecraft-service.git`
 2. `cd minecraft-service`
 3. `cp config.default config`
-4. `pico config`*
+4. `pico config`
 5. `chmod +x minecraft`
 6. `sudo ln -s /path/to/minecraft-service/minecraft /etc/init.d/minecraft`
 7. `sudo ln -s /path/to/minecraft-service/config /etc/default/minecraft`
 
-(*) Make any changes you need, point `location` to a full server path and make sure `user` can read and write to it.
+Note: When editing the config file: make any changes you need, point `location` to a full server path and make sure `user` can read and write to it.
+
+If you want the Minecraft server to be automatically started on system boot: `sudo update-rc.d minecraft defaults`
+
+**systemd (Ubuntu 15.04)**
+
+1. `git clone https://github.com/edvind/minecraft-service.git`
+2. `cd minecraft-service`
+3. `cp config.default config`
+4. `pico config`
+5. `chmod +x minecraft`
+6. `sudo ln -s /path/to/minecraft-service/minecraft /etc/init.d/minecraft`
+7. `sudo ln -s /path/to/minecraft-service/config /etc/default/minecraft`
+8. `sudo ln -s /path/to/minecraft-service/minecraft.service /lib/systemd/system/minecraft.service`
+9. `pico minecraft.service` (Change User=minecraft to the running user)
+
+Note: When editing the config file: make any changes you need, point `location` to a full server path and make sure `user` can read and write to it.
+
+If you want the Minecraft server to be automatically started on system boot: `sudo systemctl enable minecraft.service`
 
 Start it up
 -----------
 
-`service minecraft start` (or `/etc/init.d/minecraft start`) starts the server. If you want the Minecraft server to be automatically started on system boot: `update-rc.d minecraft defaults`
+SysV: `/etc/init.d/minecraft start` starts the server.
+systemd: `service minecraft start` starts the server. 
 
 FAQ
 ---
 
 Q: How do I configure multiple servers?
 
-A: Symlink (or copy) the minecraft script to an init.d script with a different name, eg. `sudo ln -s /path/to/minecraft-service/minecraft /etc/init.d/minecraft-creative` and create another config file and symlink (or copy) it to its corresponding `/etc/default/minecraft-creative`.
+A: Symlink (or copy) the minecraft script to an init.d script with a different name, eg. `sudo ln -s /path/to/minecraft-service/minecraft /etc/init.d/minecraft-creative` and create another config file and symlink (or copy) it to its corresponding `/etc/default/minecraft-creative`. If using systemd, create a corresponding .service-file.
 
 
 Q: How do I send a command to the server?
 
-A: Either use the built-in command using `service minecraft command "server command here"` or echo to specified fifo in config; eg. `echo "your command here" > /path/to/console.input`
+A: Either use the built-in command using `/etc/init.d/minecraft command "server command here"` or echo to specified fifo in config; eg. `echo "your command here" > /path/to/console.input`

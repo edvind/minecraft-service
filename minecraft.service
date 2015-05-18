@@ -1,0 +1,12 @@
+[Unit]
+Description=Minecraft server
+
+[Service]
+User=minecraft
+ExecStart=/etc/init.d/minecraft start
+ExecStop=/etc/init.d/minecraft stop
+ExecReload=/etc/init.d/minecraft reload
+Type=forking
+
+[Install]
+WantedBy=multi-user.target
