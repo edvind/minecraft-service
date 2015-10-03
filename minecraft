@@ -18,6 +18,13 @@
 # Name of script
 name=$(basename $0)
 
+# Remove startup/shutdown prefix used by /etc/rc*.d, if present.
+# Prefix is Snn for startup or Knn for shutdown, where n is a digit.
+prefix_regex="^(S|K)\d{2}"
+if test `echo ${name} | grep -Pc ${prefix_regex}` -ne 0; then
+  name=`echo ${name} | grep -Po "(?<=${prefix_regex}).+"`
+fi
+
 # Read configuration variable file if it is present
 if [ -r /etc/default/$name ]; then
   source /etc/default/$name
